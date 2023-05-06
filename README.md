@@ -5,7 +5,7 @@ Telegram bot proxies request to Chat GPT `gpt-3.5-turbo` model.
 Once chat GPT replies, telegram bot also replies to the message sender.
 
 ## Usage
-```
+```bash
 go install github.com/antelman107/chatgpt-telegram-bot
 
 TELEGRAM_BOT_TOKEN=xxx GPT_TOKEN=xxx chatgpt-telegram-bot
