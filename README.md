@@ -6,7 +6,7 @@ Once chat GPT replies, telegram bot also replies to the message sender.
 
 ## Usage
 ```
-go install https://github.com/antelman107/chatgpt-telegram-bot
+go install github.com/antelman107/chatgpt-telegram-bot
 
 TELEGRAM_BOT_TOKEN=xxx GPT_TOKEN=xxx chatgpt-telegram-bot
 // post message to the bot
