@@ -26,13 +26,17 @@ jobs:
       - name: Package Zip
         run: zip -j deployment.zip main
 
-      - name: Deploy to EB
-        uses: einaregilsson/beanstalk-deploy@v21
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
         with:
-          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          application_name: Chatgpt-telegram-bot
-          environment_name: Chatgpt-telegram-bot-env
-          version_label: 12345
-          region: eu-west-3
-          deployment_package: deployment.zip
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-3
+
+      - name: Upload Zip
+        run: aws lambda update-function-code --function-name ${{ env.AWS_FUNCTION_NAME }} --zip-file fileb://deployment.zip
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_AUTHORIZED_USER_IDS: ${{ env.TELEGRAM_AUTHORIZED_USER_IDS }}
+          GPT_TOKEN: ${{ secrets.GPT_TOKEN }}
+

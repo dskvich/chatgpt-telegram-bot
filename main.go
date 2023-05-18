@@ -2,84 +2,133 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
+	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/franciscoescher/goopenai"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"golang.org/x/exp/slices"
 )
 
-var allowedIds  []int64
+var (
+	authorizedUserIDs []int64
+    clientSessions sync.Map
+)
 
 func main() {
-	for _, s := range strings.Split(os.Getenv("TELEGRAM_ALLOWED_IDS"), ",") {
-		id, err := strconv.ParseInt(s, 10, 64)
+	authorizedUserIDs = parseAuthorizedUserIDs(os.Getenv("TELEGRAM_AUTHORIZED_USER_IDS"))
+
+	lambda.Start(Handler)
+}
+
+func parseAuthorizedUserIDs(str string) []int64 {
+	var res []int64
+
+	ids := strings.Split(str, ",")
+	for _, id := range ids {
+		userID, err := strconv.ParseInt(id, 10, 64)
 		if err != nil {
-			log.Printf("Error converting string '%s' to int64: %v\n", s, err)
+			log.Printf("Error converting string '%s' to int64: %v\n", id, err)
 			continue
 		}
-		allowedIds = append(allowedIds, id)
+		res = append(res, userID)
 	}
 
-	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_BOT_TOKEN"))
+	return res
+}
+
+
+func Handler(ctx context.Context, update tgbotapi.Update) error {
+	bot, err := tgbotapi.NewBotAPI("TELEGRAM_BOT_TOKEN")
 	if err != nil {
-		log.Panic(err)
+		return fmt.Errorf("failed to create Telegram bot: %w", err)
 	}
 
 	bot.Debug = true
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
+	if update.Message != nil {
+		if !isAuthorizedUser(update.Message.From.ID) {
+			log.Printf("Unauthorized user: %d", update.Message.From.ID)
+			return nil
+		}
 
-	updates := bot.GetUpdatesChan(u)
+		log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
-	oAPIClient := goopenai.NewClient(os.Getenv("GPT_TOKEN"), "")
+		oAPIClient, err := getOrCreateChatGPTClient(update.Message.From.ID)
+		if err != nil {
+			log.Println(err)
+			return fmt.Errorf("failed to get or create ChatGPT client: %w", err)
+		}
 
-	for update := range updates {
-		if update.Message != nil { // If we got a message
-			if !isAllowed(update.Message.From.ID) {
-				continue
-			}
-			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
+		response, err := sendToChatGPT(ctx, oAPIClient, update.Message.Text)
+		if err != nil {
+			log.Println(err)
+			return err
+		}
 
-			r := goopenai.CreateCompletionsRequest{
-				Model: "gpt-3.5-turbo",
-				Messages: []goopenai.Message{
-					{
-						Role:    "user",
-						Content: update.Message.Text,
-					},
-				},
-			}
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, response)
+		msg.ReplyToMessageID = update.Message.MessageID
 
-			completions, err := oAPIClient.CreateCompletions(context.Background(), r)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-
-			if completions.Error.Message != "" {
-				log.Println(completions.Error)
-				continue
-			}
-
-			if len(completions.Choices) > 0 && completions.Choices[0].Message.Content != "" {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, completions.Choices[0].Message.Content)
-				msg.ReplyToMessageID = update.Message.MessageID
-
-				if _, err := bot.Send(msg); err != nil {
-					log.Println(err)
-				}
-			}
+		if _, err := bot.Send(msg); err != nil {
+			return fmt.Errorf("failed to send message via Telegram bot: %w", err)
 		}
 	}
+
+	return nil
 }
 
-func isAllowed(id int64) bool {
-	return slices.Contains(allowedIds, id)
+func isAuthorizedUser(userID int64) bool {
+	for _, id := range authorizedUserIDs {
+		if id == userID {
+			return true
+		}
+	}
+
+	return false
+}
+
+func getOrCreateChatGPTClient(userID int64) (*goopenai.Client, error) {
+	if val, ok := clientSessions.Load(userID); ok {
+		if client, ok := val.(*goopenai.Client); ok {
+			return client, nil
+		}
+	}
+
+	client := goopenai.NewClient(os.Getenv("GPT_TOKEN"), "")
+	clientSessions.Store(userID, client)
+
+	return client, nil
+}
+
+func sendToChatGPT(ctx context.Context, oAPIClient *goopenai.Client, message string) (string, error) {
+	r := goopenai.CreateCompletionsRequest{
+		Model: "gpt-3.5-turbo",
+		Messages: []goopenai.Message{
+			{
+				Role:    "user",
+				Content: message,
+			},
+		},
+	}
+
+	completions, err := oAPIClient.CreateCompletions(ctx, r)
+	if err != nil {
+		return "", err
+	}
+
+	if completions.Error.Message != "" {
+		return "", fmt.Errorf("chatGPT error: %s", completions.Error.Message)
+	}
+
+	if len(completions.Choices) > 0 && completions.Choices[0].Message.Content != "" {
+		return completions.Choices[0].Message.Content, nil
+	}
+
+	return "", fmt.Errorf("no completion response from ChatGPT")
 }
