@@ -4,9 +4,6 @@ on:
   push:
     branches: [ master ]
 
-env:
-  APPLICATION_NAME: "chatgpt-telegram-bot"
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -34,8 +31,8 @@ jobs:
         with:
           aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          application_name: MyApplicationName
-          environment_name: MyApplication-Environment
+          application_name: Chatgpt-telegram-bot
+          environment_name: Chatgpt-telegram-bot-env
           version_label: 12345
           region: eu-west-3
           deployment_package: deployment.zip
