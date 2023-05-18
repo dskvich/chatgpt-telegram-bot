@@ -30,12 +30,12 @@ jobs:
         run: zip -j deployment.zip main
 
       - name: Deploy to EB
-          uses: einaregilsson/beanstalk-deploy@v21
-          with:
-            aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-            application_name: MyApplicationName
-            environment_name: MyApplication-Environment
-            version_label: 12345
-            region: eu-west-3
-            deployment_package: deployment.zip
+        uses: einaregilsson/beanstalk-deploy@v21
+        with:
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          application_name: MyApplicationName
+          environment_name: MyApplication-Environment
+          version_label: 12345
+          region: eu-west-3
+          deployment_package: deployment.zip
