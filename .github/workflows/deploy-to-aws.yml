@@ -36,11 +36,6 @@ jobs:
       - name: Upload Zip
         run: |
           aws lambda update-function-code \
-            --function-name ${{ secrets.AWS_FUNCTION_NAME }} \
+            --function-name chatgpt-telegram-bot \
             --zip-file fileb://deployment.zip
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_AUTHORIZED_USER_IDS: ${{ env.TELEGRAM_AUTHORIZED_USER_IDS }}
-          GPT_TOKEN: ${{ secrets.GPT_TOKEN }}
-          AWS_FUNCTION_NAME: ${{ secrets.AWS_FUNCTION_NAME }}
 
