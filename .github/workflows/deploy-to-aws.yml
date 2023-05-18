@@ -21,7 +21,7 @@ jobs:
         run: go mod download
 
       - name: Build application
-        run: go build -o main
+        run: CGO_ENABLED=0 go build -o main -ldflags "-s -w -extldflags '-static'"
 
       - name: Package Zip
         run: zip deployment.zip main
