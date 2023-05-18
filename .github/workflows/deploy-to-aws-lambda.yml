@@ -1,0 +1,42 @@
+name: Deploy to AWS Lambda
+
+on:
+  push:
+    branches: [ master ]
+
+env:
+  FUNCTION_NAME: "chatgpt-telegram-bot"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.20
+
+      - name: Build application
+        run: go build -o main.go
+
+      - name: Package Zip
+        run: zip -j deployment.zip main
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload Zip
+        run: aws lambda update-function-code --function-name $FUNCTION_NAME --zip-file fileb://deployment.zip
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ALLOWED_IDS: ${{ env.TELEGRAM_ALLOWED_IDS }}
+          GPT_TOKEN: ${{ secrets.GPT_TOKEN }}
+
