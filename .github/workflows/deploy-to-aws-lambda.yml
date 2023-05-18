@@ -24,11 +24,7 @@ jobs:
         run: go mod download
 
       - name: Build application
-        run: go build -ldflags="-s -w" -o main.go
-        env:
-          CGO_ENABLED: 0
-          GOOS: linux
-          GOARCH: amd64
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o main.go
 
       - name: Package Zip
         run: zip -j deployment.zip main
