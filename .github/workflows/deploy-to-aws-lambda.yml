@@ -24,10 +24,10 @@ jobs:
         run: go mod download
 
       - name: Build application
-        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o main.go
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o app
 
       - name: Package Zip
-        run: zip -j deployment.zip main
+        run: zip -j deployment.zip app
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
