@@ -1,0 +1,41 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [ master ]
+
+env:
+  APPLICATION_NAME: "chatgpt-telegram-bot"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.20.4
+
+      - name: Restore dependencies
+        run: go mod download
+
+      - name: Build application
+        run: CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o main
+
+      - name: Package Zip
+        run: zip -j deployment.zip main
+
+      - name: Deploy to EB
+          uses: einaregilsson/beanstalk-deploy@v21
+          with:
+            aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            application_name: MyApplicationName
+            environment_name: MyApplication-Environment
+            version_label: 12345
+            region: eu-west-3
+            deployment_package: deployment.zip
