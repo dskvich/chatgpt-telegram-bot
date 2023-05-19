@@ -68,7 +68,7 @@ func Handler(ctx context.Context, update tgbotapi.Update) error {
 
 	log.Printf("Authorized IDs parsed: %+v\n", authorizedUserIDs)
 
-	bot, err := tgbotapi.NewBotAPI("TELEGRAM_BOT_TOKEN")
+	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_BOT_TOKEN"))
 	if err != nil {
 		return fmt.Errorf("failed to create Telegram bot: %w", err)
 	}
