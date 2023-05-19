@@ -2,15 +2,18 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/franciscoescher/goopenai"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"log"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/franciscoescher/goopenai"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 var (
@@ -41,7 +44,7 @@ func parseAuthorizedUserIDs(str string) []int64 {
 }
 
 
-func Handler(ctx context.Context, update tgbotapi.Update) error {
+func Handler(ctx context.Context, request events.APIGatewayProxyRequest) error {
 	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_BOT_TOKEN"))
 	if err != nil {
 		return fmt.Errorf("failed to create Telegram bot: %w", err)
@@ -51,10 +54,14 @@ func Handler(ctx context.Context, update tgbotapi.Update) error {
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
-	log.Printf("Update received: %+v", update)
-	if update.Message != nil {
-		log.Printf("Message received: %+v", update.Message)
+	update := tgbotapi.Update{}
+	err = json.Unmarshal([]byte(request.Body), &update)
+	if err != nil {
+		return fmt.Errorf("failed to parse request: %w", err)
+	}
+	log.Printf("Update: %+v", update)
 
+	if update.Message != nil {
 		if !isAuthorizedUser(update.Message.From.ID) {
 			log.Printf("Unauthorized user: %d", update.Message.From.ID)
 			return nil
