@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/franciscoescher/goopenai"
@@ -23,6 +25,21 @@ func main() {
 	authorizedUserIDs = parseAuthorizedUserIDs(os.Getenv("TELEGRAM_AUTHORIZED_USER_IDS"))
 
 	lambda.Start(Handler)
+}
+
+func checkInternetAccess() bool {
+	client := http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	resp, err := client.Get("https://www.google.com")
+	if err != nil {
+		return false
+	}
+
+	defer resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
 }
 
 func parseAuthorizedUserIDs(str string) []int64 {
@@ -43,6 +60,14 @@ func parseAuthorizedUserIDs(str string) []int64 {
 
 
 func Handler(ctx context.Context, update tgbotapi.Update) error {
+	if checkInternetAccess() {
+		fmt.Println("Internet access is available")
+	} else {
+		fmt.Println("No internet access")
+	}
+
+	fmt.Printf("Authorized IDs parsed: %+v\n", authorizedUserIDs)
+
 	bot, err := tgbotapi.NewBotAPI("TELEGRAM_BOT_TOKEN")
 	if err != nil {
 		return fmt.Errorf("failed to create Telegram bot: %w", err)
