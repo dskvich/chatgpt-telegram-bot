@@ -61,12 +61,12 @@ func parseAuthorizedUserIDs(str string) []int64 {
 
 func Handler(ctx context.Context, update tgbotapi.Update) error {
 	if checkInternetAccess() {
-		fmt.Println("Internet access is available")
+		log.Println("Internet access is available")
 	} else {
-		fmt.Println("No internet access")
+		log.Println("No internet access")
 	}
 
-	fmt.Printf("Authorized IDs parsed: %+v\n", authorizedUserIDs)
+	log.Printf("Authorized IDs parsed: %+v\n", authorizedUserIDs)
 
 	bot, err := tgbotapi.NewBotAPI("TELEGRAM_BOT_TOKEN")
 	if err != nil {
