@@ -33,7 +33,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Update AWS Lambda
+      - name: Update ENV variables
         run: |
           aws lambda update-function-configuration \
             --function-name chatgpt-telegram-bot \
@@ -41,7 +41,14 @@ jobs:
               TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
               TELEGRAM_AUTHORIZED_USER_IDS=${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS }} \
               GPT_TOKEN=${{ secrets.GPT_TOKEN }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_AUTHORIZED_USER_IDS: ${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS }}
+          GPT_TOKEN: ${{ secrets.GPT_TOKEN }}
 
+      - name: Upload Zip
+        run: |
           aws lambda update-function-code \
             --function-name chatgpt-telegram-bot \
             --zip-file fileb://deployment.zip
+
