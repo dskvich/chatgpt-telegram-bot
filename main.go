@@ -98,6 +98,8 @@ func getOrCreateChatGPTClient(userID int64) (*goopenai.Client, error) {
 	client := goopenai.NewClient(os.Getenv("GPT_TOKEN"), "")
 	clientSessions.Store(userID, client)
 
+	log.Printf("New ChatGPT client created for user with ID %s", userID)
+
 	return client, nil
 }
 

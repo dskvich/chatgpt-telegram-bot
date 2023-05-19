@@ -9,6 +9,8 @@ require (
 )
 
 require (
+	github.com/aws/aws-sdk-go v1.44.265 // indirect
 	github.com/google/go-cmp v0.5.8 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 )

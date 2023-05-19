@@ -16,7 +16,6 @@ TBD
 * Press Create function on the top right.
 * Choose Author from scratch.
 * Name your function and choose the Go 1.x runtime.
-* In the execution roles, choose Use an existing role and choose the one we created earlier.
 * Once the function has been created, write main as the function handler.
 
 ### API Gateway configuration
@@ -28,5 +27,36 @@ TBD
 * Make sure that Lambda function is selected as the Integration type.
 * Make sure that Lambda Proxy Integration is disabled.
 * Choose the appropriate region and write name of the function you've created in the Lambda function field.
-* Make sure that in the Body mapping templates of the function, When there are no templates defined (recommended)" is selected.
 * Deploy the API by choosing the option from the dropdown menu. This way you'll be given the URL we'll use to set up the bot's webhooks.
+
+## Development
+
+For developers on Windows to create a .zip that will work on AWS Lambda, the `build-lambda-zip` tool may be helpful.
+
+Get the tool
+```
+go.exe install github.com/aws/aws-lambda-go/cmd/build-lambda-zip@latest
+```
+Then
+```
+.\buildzip.bat
+```
+
+You can now upload the function via the web interface and save the changes.
+
+## Webhook setup
+
+From the Lambda page, get the API Endpoint and from Telegram your bot token.
+Perform the appropriate HTTP request.
+
+### Webhook creation
+
+```
+https://api.telegram.org/bot<BOT-TOKEN>/setWebhook?url=<API-GATEWAY-URL>
+```
+
+### Webhook deletion
+
+```
+https://api.telegram.org/bot<BOT-TOKEN>/deleteWebhook
+```
