@@ -3,17 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/franciscoescher/goopenai"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"log"
-	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
-
-	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/franciscoescher/goopenai"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 var (
@@ -25,21 +22,6 @@ func main() {
 	authorizedUserIDs = parseAuthorizedUserIDs(os.Getenv("TELEGRAM_AUTHORIZED_USER_IDS"))
 
 	lambda.Start(Handler)
-}
-
-func checkInternetAccess() bool {
-	client := http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	resp, err := client.Get("https://www.google.com")
-	if err != nil {
-		return false
-	}
-
-	defer resp.Body.Close()
-
-	return resp.StatusCode == http.StatusOK
 }
 
 func parseAuthorizedUserIDs(str string) []int64 {
@@ -60,14 +42,6 @@ func parseAuthorizedUserIDs(str string) []int64 {
 
 
 func Handler(ctx context.Context, update tgbotapi.Update) error {
-	if checkInternetAccess() {
-		log.Println("Internet access is available")
-	} else {
-		log.Println("No internet access")
-	}
-
-	log.Printf("Authorized IDs parsed: %+v\n", authorizedUserIDs)
-
 	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_BOT_TOKEN"))
 	if err != nil {
 		return fmt.Errorf("failed to create Telegram bot: %w", err)
@@ -77,7 +51,10 @@ func Handler(ctx context.Context, update tgbotapi.Update) error {
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
+	log.Printf("Update received: %+v", update)
 	if update.Message != nil {
+		log.Printf("Message received: %+v", update.Message)
+
 		if !isAuthorizedUser(update.Message.From.ID) {
 			log.Printf("Unauthorized user: %d", update.Message.From.ID)
 			return nil
