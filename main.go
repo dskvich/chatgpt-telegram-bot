@@ -42,48 +42,40 @@ func parseAuthorizedUserIDs(str string) []int64 {
 }
 
 
-func Handler(ctx context.Context, update tgbotapi.Update) error {
+func Handler(ctx context.Context, update tgbotapi.Update) {
 	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_BOT_TOKEN"))
 	if err != nil {
-		return fmt.Errorf("failed to create Telegram bot: %w", err)
+		log.Fatalf("failed to create Telegram bot: %w", err)
 	}
 
 	bot.Debug = true
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
-	log.Printf("Update received: %+v", update)
 	if update.Message != nil {
-		log.Printf("Message received: %+v", update.Message)
-
 		if !isAuthorizedUser(update.Message.From.ID) {
-			log.Printf("Unauthorized user: %d", update.Message.From.ID)
-			return nil
+			log.Fatalf("Unauthorized user: %d", update.Message.From.ID)
 		}
 
 		log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
 		oAPIClient, err := getOrCreateChatGPTClient(update.Message.From.ID)
 		if err != nil {
-			log.Println(err)
-			return fmt.Errorf("failed to get or create ChatGPT client: %w", err)
+			log.Fatalf("failed to get or create ChatGPT client: %w", err)
 		}
 
 		response, err := sendToChatGPT(ctx, oAPIClient, update.Message.Text)
 		if err != nil {
-			log.Println(err)
-			return err
+			log.Fatalf("failed to send message to ChatGPT: %w", err)
 		}
 
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, response)
 		msg.ReplyToMessageID = update.Message.MessageID
 
 		if _, err := bot.Send(msg); err != nil {
-			return fmt.Errorf("failed to send message via Telegram bot: %w", err)
+			log.Fatalf("failed to send message via Telegram bot: %w", err)
 		}
 	}
-
-	return nil
 }
 
 func isAuthorizedUser(userID int64) bool {
