@@ -7,7 +7,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/franciscoescher/goopenai"
@@ -16,11 +15,12 @@ import (
 
 var (
 	authorizedUserIDs []int64
-	clientSessions    sync.Map
+	client            *goopenai.Client
 )
 
 func main() {
 	authorizedUserIDs = parseAuthorizedUserIDs(os.Getenv("TELEGRAM_AUTHORIZED_USER_IDS"))
+	client = goopenai.NewClient(os.Getenv("GPT_TOKEN"), "")
 
 	lambda.Start(Handler)
 }
@@ -81,14 +81,7 @@ func handleChatMessage(ctx context.Context, bot *tgbotapi.BotAPI, update tgbotap
 		log.Fatalf("Unauthorized user: %d", update.Message.From.ID)
 	}
 
-	logClientSessions()
-
-	client, err := getOrCreateChatGPTClient(update.Message.From.ID)
-	if err != nil {
-		log.Fatalf("failed to get or create ChatGPT client: %w", err)
-	}
-
-	response, err := sendToChatGPT(ctx, client, update.Message.Text)
+	response, err := sendToChatGPT(ctx, update.Message.Text)
 	if err != nil {
 		log.Fatalf("failed to send message to ChatGPT: %w", err)
 	}
@@ -106,31 +99,7 @@ func isAuthorizedUser(userID int64) bool {
 	return false
 }
 
-func logClientSessions() {
-	clientSessions.Range(func(key, value interface{}) bool {
-		userID := key.(int64)
-		client := value.(*goopenai.Client)
-		log.Printf("userID: %d, client: %v", userID, client)
-		return true
-	})
-}
-
-func getOrCreateChatGPTClient(userID int64) (*goopenai.Client, error) {
-	if val, ok := clientSessions.Load(userID); ok {
-		if client, ok := val.(*goopenai.Client); ok {
-			return client, nil
-		}
-	}
-
-	client := goopenai.NewClient(os.Getenv("GPT_TOKEN"), "")
-	clientSessions.Store(userID, client)
-
-	log.Printf("New ChatGPT client created for user with ID %d", userID)
-
-	return client, nil
-}
-
-func sendToChatGPT(ctx context.Context, oAPIClient *goopenai.Client, message string) (string, error) {
+func sendToChatGPT(ctx context.Context, message string) (string, error) {
 	r := goopenai.CreateCompletionsRequest{
 		Model: "gpt-3.5-turbo",
 		Messages: []goopenai.Message{
@@ -141,7 +110,7 @@ func sendToChatGPT(ctx context.Context, oAPIClient *goopenai.Client, message str
 		},
 	}
 
-	completions, err := oAPIClient.CreateCompletions(ctx, r)
+	completions, err := client.CreateCompletions(ctx, r)
 	if err != nil {
 		return "", err
 	}
