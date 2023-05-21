@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/franciscoescher/goopenai"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -22,7 +21,37 @@ func main() {
 	authorizedUserIDs = parseAuthorizedUserIDs(os.Getenv("TELEGRAM_AUTHORIZED_USER_IDS"))
 	client = goopenai.NewClient(os.Getenv("GPT_TOKEN"), "")
 
-	lambda.Start(Handler)
+	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_BOT_TOKEN"))
+	if err != nil {
+		log.Fatalf("failed to create Telegram bot: %w", err)
+	}
+
+	bot.Debug = true
+
+	log.Printf("Authorized on account %s", bot.Self.UserName)
+
+	u := tgbotapi.NewUpdate(0)
+	u.Timeout = 60
+
+	updates := bot.GetUpdatesChan(u)
+	for update := range updates {
+		if update.Message != nil {
+			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
+
+			switch {
+			case strings.HasPrefix(update.Message.Text, "/userid"):
+				if err := handleUserIDCommand(bot, update); err != nil {
+					log.Println(err)
+					continue
+				}
+			default:
+				if err := handleChatMessage(bot, update); err != nil {
+					log.Println(err)
+					continue
+				}
+			}
+		}
+	}
 }
 
 func parseAuthorizedUserIDs(str string) []int64 {
@@ -41,52 +70,33 @@ func parseAuthorizedUserIDs(str string) []int64 {
 	return res
 }
 
-func Handler(ctx context.Context, update tgbotapi.Update) {
-	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_BOT_TOKEN"))
-	if err != nil {
-		log.Fatalf("failed to create Telegram bot: %w", err)
-	}
 
-	bot.Debug = true
 
-	log.Printf("Authorized on account %s", bot.Self.UserName)
-
-	if update.Message != nil {
-		log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
-
-		switch {
-		case strings.HasPrefix(update.Message.Text, "/userid"):
-			handleUserIDCommand(ctx, bot, update)
-		default:
-			handleChatMessage(ctx, bot, update)
-		}
-	}
-}
-
-func handleUserIDCommand(_ context.Context, bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+func handleUserIDCommand(bot *tgbotapi.BotAPI, update tgbotapi.Update) error {
 	response := fmt.Sprintf("Your user ID is %d", update.Message.From.ID)
-	sendTelegramMessage(bot, update.Message.Chat.ID, response, update.Message.MessageID)
+	return sendTelegramMessage(bot, update.Message.Chat.ID, response, update.Message.MessageID)
 }
 
-func sendTelegramMessage(bot *tgbotapi.BotAPI, chatID int64, text string, replyToMessageID int) {
+func sendTelegramMessage(bot *tgbotapi.BotAPI, chatID int64, text string, replyToMessageID int) error {
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ReplyToMessageID = replyToMessageID
 	if _, err := bot.Send(msg); err != nil {
-		log.Fatalf("failed to send message via Telegram bot: %w", err)
+		return fmt.Errorf("failed to send message via Telegram bot: %w", err)
 	}
+	return nil
 }
 
-func handleChatMessage(ctx context.Context, bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+func handleChatMessage( bot *tgbotapi.BotAPI, update tgbotapi.Update) error {
 	if !isAuthorizedUser(update.Message.From.ID) {
-		log.Fatalf("Unauthorized user: %d", update.Message.From.ID)
+		return  fmt.Errorf("unauthorized user: %d", update.Message.From.ID)
 	}
 
-	response, err := sendToChatGPT(ctx, update.Message.Text)
+	response, err := sendToChatGPT(update.Message.Text)
 	if err != nil {
-		log.Fatalf("failed to send message to ChatGPT: %w", err)
+		return fmt.Errorf("failed to send message to ChatGPT: %w", err)
 	}
 
-	sendTelegramMessage(bot, update.Message.Chat.ID, response, update.Message.MessageID)
+	return sendTelegramMessage(bot, update.Message.Chat.ID, response, update.Message.MessageID)
 }
 
 func isAuthorizedUser(userID int64) bool {
@@ -99,7 +109,7 @@ func isAuthorizedUser(userID int64) bool {
 	return false
 }
 
-func sendToChatGPT(ctx context.Context, message string) (string, error) {
+func sendToChatGPT(message string) (string, error) {
 	r := goopenai.CreateCompletionsRequest{
 		Model: "gpt-3.5-turbo",
 		Messages: []goopenai.Message{
@@ -110,7 +120,7 @@ func sendToChatGPT(ctx context.Context, message string) (string, error) {
 		},
 	}
 
-	completions, err := client.CreateCompletions(ctx, r)
+	completions, err := client.CreateCompletions(context.Background(), r)
 	if err != nil {
 		return "", err
 	}
