@@ -43,7 +43,7 @@ func main() {
 			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
 			switch {
-			case strings.HasPrefix(update.Message.Text, "!"):
+			case strings.HasPrefix(update.Message.Text, "/ignore"):
 				continue
 			case strings.HasPrefix(update.Message.Text, "/userid"):
 				if err := handleUserIDCommand(bot, update); err != nil {
