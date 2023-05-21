@@ -18,3 +18,6 @@ RUN adduser -S -D -H user
 USER user
 
 CMD ["./main"]
+
+ENV PORT=8080
+EXPOSE $PORT

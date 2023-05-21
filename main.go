@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -20,6 +21,9 @@ var (
 func main() {
 	authorizedUserIDs = parseAuthorizedUserIDs(os.Getenv("TELEGRAM_AUTHORIZED_USER_IDS"))
 	client = goopenai.NewClient(os.Getenv("GPT_TOKEN"), "")
+
+	port := os.Getenv("PORT")
+	go runServer(port)
 
 	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_BOT_TOKEN"))
 	if err != nil {
@@ -52,6 +56,10 @@ func main() {
 			}
 		}
 	}
+}
+
+func runServer(port string){
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), nil))
 }
 
 func parseAuthorizedUserIDs(str string) []int64 {
