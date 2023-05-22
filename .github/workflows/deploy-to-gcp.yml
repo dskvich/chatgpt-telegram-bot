@@ -39,4 +39,4 @@ jobs:
         run: |
           gcloud compute instances create-with-container $SERVICE_NAME \
           --container-image gcr.io/${{ secrets.GCP_PROJECT_ID }}/$SERVICE_NAME:latest \
-          --container-env TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}",GPT_TOKEN="${{ secrets.GPT_TOKEN }}",TELEGRAM_AUTHORIZED_USER_IDS="${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS//','/'^#^'}}"
+          --container-env TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}",GPT_TOKEN="${{ secrets.GPT_TOKEN }}",TELEGRAM_AUTHORIZED_USER_IDS="${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS/','/'^#^'}}"
