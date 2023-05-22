@@ -5,7 +5,6 @@ on:
     branches: [ master ]
 
 env:
-  RUN_REGION: europe-west1
   SERVICE_NAME: chatgpt-telegram-bot
 
 jobs:
@@ -26,7 +25,7 @@ jobs:
 
       - name: Configure Docker
         run: |
-          gcloud auth configure-docker
+          gcloud auth configure-docker --quiet
 
       - name: Build
         run: |
@@ -38,13 +37,8 @@ jobs:
 
       - name: Deploy
         run: |
-          gcloud run deploy "$SERVICE_NAME" \
-          --region "$RUN_REGION" \
-          --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/$SERVICE_NAME \
-          --platform managed \
-          --allow-unauthenticated \
-          --min-instances=1 \
-          --project ${{ secrets.GCP_PROJECT_ID }} \
+          gcloud compute instances create-with-container $SERVICE_NAME \
+          --container-image gcr.io/${{ secrets.GCP_PROJECT_ID }}/$SERVICE_NAME:latest \
           --set-env-vars 'TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}' \
           --set-env-vars 'GPT_TOKEN=${{ secrets.GPT_TOKEN }}' \
           --set-env-vars '^#^TELEGRAM_AUTHORIZED_USER_IDS=${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS }}'
