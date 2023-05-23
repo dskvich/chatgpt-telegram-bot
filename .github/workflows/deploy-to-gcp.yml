@@ -38,9 +38,9 @@ jobs:
           docker push gcr.io/$GCP_PROJECT_ID/$SERVICE_NAME:$GITHUB_SHA
 
       - name: Helm Lint
-          uses: WyriHaximus/github-action-helm3@v3
-          with:
-            exec: helm lint ./helm-chart
+        uses: WyriHaximus/github-action-helm3@v3
+        with:
+          exec: helm lint ./helm-chart
 
       - name: Helm install
         uses: WyriHaximus/github-action-helm3@v3
