@@ -37,13 +37,15 @@ jobs:
         run: |
           docker push gcr.io/$GCP_PROJECT_ID/$SERVICE_NAME:$GITHUB_SHA
 
-      - name: Helm lint
-        uses: WyriHaximus/github-action-helm3@v3
-        with:
-          exec: helm lint ./helm-chart
+      - name: Install Helm
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
 
-      - name: Helm install
-        uses: WyriHaximus/github-action-helm3@v3
-        with:
-          exec: helm upgrade --install $SERVICE_NAME ./helm-chart
-          kubeconfig: ${{ secrets.KUBECONFIG }}
+      - name: Deploy
+        run: |
+          gcloud container clusters get-credentials cluster-1 \
+            --location us-central1-c
+          helm upgrade $SERVICE_NAME ./helm-chart \
+            --wait
+          kubectl rollout status deployment/$SERVICE_NAME
+          kubectl get services -o wide
