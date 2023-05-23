@@ -45,10 +45,5 @@ jobs:
       - name: Helm install
         uses: WyriHaximus/github-action-helm3@v3
         with:
-          exec: helm upgrade --install '$SERVICE_NAME' ./helm-chart \
-            --set SERVICE_NAME='$SERVICE_NAME \
-            --set GITHUB_SHA='$GITHUB_SHA' \
-            --set TELEGRAM_BOT_TOKEN='${{ secrets.TELEGRAM_BOT_TOKEN }}' \
-            --set GPT_TOKEN='${{ secrets.GPT_TOKEN }}' \
-            --set TELEGRAM_AUTHORIZED_USER_IDS='${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS }}'
+          exec: helm upgrade --install $SERVICE_NAME ./helm-chart
           kubeconfig: ${{ secrets.KUBECONFIG }}
