@@ -1,0 +1,26 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: {{ .Values.SERVICE_NAME }}
+spec:
+  strategy:
+    type: RollingUpdate
+  replicas: {{ .Values.REPLICAS }}
+  selector:
+    matchLabels:
+      app: {{ .Values.SERVICE_NAME }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.SERVICE_NAME }}
+    spec:
+      containers:
+        - name: {{ .Values.SERVICE_NAME }}
+          image: '{{ .Values.SERVICE_NAME }}:{{ .Values.GITHUB_SHA }}'
+          env:
+            - name: TELEGRAM_BOT_TOKEN
+              value: {{ .Values.TELEGRAM_BOT_TOKEN }}
+            - name: GPT_TOKEN
+              value: {{ .Values.GPT_TOKEN }}
+            - name: TELEGRAM_AUTHORIZED_USER_IDS
+              value: {{ .Values.TELEGRAM_AUTHORIZED_USER_IDS }}

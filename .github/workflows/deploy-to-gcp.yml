@@ -6,6 +6,8 @@ on:
 
 env:
   SERVICE_NAME: chatgpt-telegram-bot
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GITHUB_SHA: ${{ github.sha }}
 
 jobs:
   deploy:
@@ -29,14 +31,19 @@ jobs:
 
       - name: Build
         run: |
-          docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/$SERVICE_NAME:latest .
+          docker build -t gcr.io/$GCP_PROJECT_ID/$SERVICE_NAME:$GITHUB_SHA .
 
       - name: Push
         run: |
-          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/$SERVICE_NAME:latest
+          docker push gcr.io/$GCP_PROJECT_ID/$SERVICE_NAME:$GITHUB_SHA
 
-      - name: Deploy
-        run: |
-          gcloud compute instances create-with-container $SERVICE_NAME \
-          --container-image gcr.io/${{ secrets.GCP_PROJECT_ID }}/$SERVICE_NAME:latest \
-          --container-env TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}",GPT_TOKEN="${{ secrets.GPT_TOKEN }}",TELEGRAM_AUTHORIZED_USER_IDS="${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS//,'/^#^'}}"
+      - name: Helm Lint
+          uses: WyriHaximus/github-action-helm3@v2
+          with:
+            exec: helm lint ./helm-chart
+
+      - name: Helm install
+        uses: WyriHaximus/github-action-helm3@v2
+        with:
+          exec: helm upgrade --install $SERVICE_NAME ./helm-chart
+          kubeconfig: '${{ secrets.KUBECONFIG }}'
