@@ -37,7 +37,7 @@ jobs:
         run: |
           docker push gcr.io/$GCP_PROJECT_ID/$SERVICE_NAME:$GITHUB_SHA
 
-      - name: Helm Lint
+      - name: Helm lint
         uses: WyriHaximus/github-action-helm3@v3
         with:
           exec: helm lint ./helm-chart
@@ -45,7 +45,7 @@ jobs:
       - name: Helm install
         uses: WyriHaximus/github-action-helm3@v3
         with:
-          exec: helm upgrade --install $SERVICE_NAME ./helm-chart \
+          exec: helm --debug upgrade --install $SERVICE_NAME ./helm-chart \
             --set SERVICE_NAME=$SERVICE_NAME \
             --set GITHUB_SHA=$GITHUB_SHA \
             --set TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
