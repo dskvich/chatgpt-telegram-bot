@@ -67,7 +67,7 @@ func runServer(port string){
 func parseAuthorizedUserIDs(str string) []int64 {
 	var res []int64
 
-	ids := strings.Split(str, ",")
+	ids := strings.Split(str, " ")
 	for _, id := range ids {
 		userID, err := strconv.ParseInt(id, 10, 64)
 		if err != nil {
