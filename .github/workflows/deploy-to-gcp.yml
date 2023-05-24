@@ -52,6 +52,11 @@ jobs:
           gcloud container clusters get-credentials cluster-1 \
             --location us-central1-c
           helm upgrade --install $SERVICE_NAME ./helm-chart \
+            --set SERVICE_NAME=$SERVICE_NAME \
+            --set GITHUB_SHA=$GITHUB_SHA \
+            --set TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
+            --set GPT_TOKEN="${{ secrets.GPT_TOKEN }}" \
+            --set TELEGRAM_AUTHORIZED_USER_IDS="${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS }}"
             --wait
           kubectl rollout status deployment/$SERVICE_NAME
           kubectl get services -o wide
