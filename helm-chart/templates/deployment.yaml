@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: {{ .Values.SERVICE_NAME }}
-          image: '{{ .Values.SERVICE_NAME }}:{{ .Values.GITHUB_SHA }}'
+          image: {{ .Values.IMAGE_NAME }}
           env:
             - name: TELEGRAM_BOT_TOKEN
               value: {{ .Values.TELEGRAM_BOT_TOKEN }}

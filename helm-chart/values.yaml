@@ -1,6 +1,6 @@
 SERVICE_NAME: "chatgpt-telegram-bot"
+IMAGE_NAME: ''
 REPLICAS: 1
-GITHUB_SHA: ''
 
 TELEGRAM_BOT_TOKEN: ''
 GPT_TOKEN: ''
