@@ -56,7 +56,7 @@ jobs:
             --set GITHUB_SHA=$GITHUB_SHA \
             --set TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
             --set GPT_TOKEN="${{ secrets.GPT_TOKEN }}" \
-            --set-string TELEGRAM_AUTHORIZED_USER_IDS="{{- split \",\" (index .Values \"TELEGRAM_AUTHORIZED_USER_IDS\") -}}" \
+            --set-string TELEGRAM_AUTHORIZED_USER_IDS="${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS }}" \
             --wait
           kubectl rollout status deployment/$SERVICE_NAME
           kubectl get services -o wide
