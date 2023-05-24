@@ -17,7 +17,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Setup GCP Service Account
+      - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
           credentials_json: ${{ secrets.GCP_CREDENTIALS }}
@@ -29,7 +29,7 @@ jobs:
 
       - name: Configure Docker
         run: |
-          gcloud --quiet auth configure-docker
+          gcloud auth configure-docker --quiet
 
       - name: Build Docker Image
         run: |
@@ -43,13 +43,13 @@ jobs:
         run: |
           curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
 
-      - name: Connect to GKE
+      - name: Authenticate to GKE
         uses: google-github-actions/get-gke-credentials@v1
         with:
           cluster_name: cluster-1
           location: us-central1-c
 
-      - name: Deploy to GKE
+      - name: Deploy Application
         run: |
           helm upgrade --install ${{ env.SERVICE_NAME }} ./helm-chart \
             --set 'SERVICE_NAME=${{ env.SERVICE_NAME }}' \

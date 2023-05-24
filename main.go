@@ -65,6 +65,10 @@ func runServer(port string){
 }
 
 func parseAuthorizedUserIDs(str string) []int64 {
+	if str == "" {
+		return nil
+	}
+
 	var res []int64
 
 	ids := strings.Split(str, " ")
@@ -97,7 +101,7 @@ func sendTelegramMessage(bot *tgbotapi.BotAPI, chatID int64, text string, replyT
 }
 
 func handleChatMessage( bot *tgbotapi.BotAPI, update tgbotapi.Update) error {
-	if !isAuthorizedUser(update.Message.From.ID) {
+	if len(authorizedUserIDs) > 0 && !isAuthorizedUser(update.Message.From.ID) {
 		return  fmt.Errorf("unauthorized user: %d", update.Message.From.ID)
 	}
 
