@@ -51,7 +51,7 @@ jobs:
         run: |
           gcloud container clusters get-credentials cluster-1 \
             --location us-central1-c
-          helm upgrade $SERVICE_NAME ./helm-chart \
+          helm upgrade --install $SERVICE_NAME ./helm-chart \
             --wait
           kubectl rollout status deployment/$SERVICE_NAME
           kubectl get services -o wide
