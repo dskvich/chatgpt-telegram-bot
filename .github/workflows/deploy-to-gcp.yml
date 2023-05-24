@@ -8,10 +8,6 @@ env:
   SERVICE_NAME: chatgpt-telegram-bot
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   GITHUB_SHA: ${{ github.sha }}
-  IMAGE_NAME: gcr.io/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ env.GITHUB_SHA }}
-  TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-  GPT_TOKEN: ${{ secrets.GPT_TOKEN }}
-  TELEGRAM_AUTHORIZED_USER_IDS: ${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS }}
 
 jobs:
   deploy:
@@ -41,11 +37,11 @@ jobs:
 
       - name: Build Docker Image
         run: |
-          docker build -t $IMAGE_NAME .
+          docker build -t gcr.io/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ env.GITHUB_SHA }} .
 
       - name: Push Docker Image
         run: |
-          docker push $IMAGE_NAME
+          docker push gcr.io/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ env.GITHUB_SHA }}
 
       - name: Install Helm
         run: |
@@ -57,10 +53,10 @@ jobs:
             --location us-central1-c
           helm upgrade --install $SERVICE_NAME ./helm-chart \
             --set SERVICE_NAME=$SERVICE_NAME \
-            --set IMAGE_NAME=$IMAGE_NAME \
-            --set TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN \
-            --set GPT_TOKEN=$GPT_TOKEN \
-            --set TELEGRAM_AUTHORIZED_USER_IDS=$TELEGRAM_AUTHORIZED_USER_IDS \
+            --set IMAGE_NAME=gcr.io/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ env.GITHUB_SHA }} \
+            --set TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
+            --set GPT_TOKEN=${{ secrets.GPT_TOKEN }} \
+            --set TELEGRAM_AUTHORIZED_USER_IDS=${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS }} \
             --wait
 
       - name: Wait for Deployment
