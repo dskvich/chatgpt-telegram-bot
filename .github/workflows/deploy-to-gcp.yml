@@ -28,11 +28,11 @@ jobs:
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
+        with:
+          install_components: gke-gcloud-auth-plugin
 
-      - name: Prepare gcloud components
+      - name: Configure Docker
         run: |
-          gcloud components install gke-gcloud-auth-plugin
-          gcloud components update
           gcloud --quiet auth configure-docker
 
       - name: Build Docker Image
@@ -51,6 +51,7 @@ jobs:
         run: |
           gcloud container clusters get-credentials cluster-1 \
             --location us-central1-c
+
           helm upgrade --install ${{ env.SERVICE_NAME }} ./helm-chart \
             --set 'SERVICE_NAME=${{ env.SERVICE_NAME }}' \
             --set 'IMAGE_NAME=gcr.io/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ env.GITHUB_SHA }}' \
@@ -58,11 +59,3 @@ jobs:
             --set 'GPT_TOKEN=${{ secrets.GPT_TOKEN }}' \
             --set 'TELEGRAM_AUTHORIZED_USER_IDS=${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS }}' \
             --wait
-
-      - name: Wait for Deployment
-        run: |
-          kubectl rollout status deployment/$SERVICE_NAME
-
-      - name: Get Service Information
-        run: |
-          kubectl get services -o wide
