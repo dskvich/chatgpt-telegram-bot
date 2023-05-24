@@ -47,11 +47,14 @@ jobs:
         run: |
           curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
 
+      - name: Connect to GKE
+        uses: google-github-actions/get-gke-credentials@v1
+        with:
+          cluster_name: cluster-1
+          location: us-central1-c
+
       - name: Deploy to GKE
         run: |
-          gcloud container clusters get-credentials cluster-1 \
-            --location us-central1-c
-
           helm upgrade --install ${{ env.SERVICE_NAME }} ./helm-chart \
             --set 'SERVICE_NAME=${{ env.SERVICE_NAME }}' \
             --set 'IMAGE_NAME=gcr.io/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ env.GITHUB_SHA }}' \
