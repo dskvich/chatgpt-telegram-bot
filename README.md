@@ -21,3 +21,8 @@ If the `TELEGRAM_AUTHORIZED_USER_IDS` variable is empty, all users will be permi
 - Choose or type the /newbot command and send it.
 - Enter a name for the bot and give it a unique username. Note that the bot name must end with the word "bot" (case-insensitive).
 - Copy and save the Telegram bot's access token for later steps.
+
+### References
+- OpenAI platform: https://platform.openai.com
+- Create GPT token: https://platform.openai.com/account/api-keys
+- Image generation API: https://platform.openai.com/docs/api-reference/images/create
