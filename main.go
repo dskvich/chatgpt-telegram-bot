@@ -117,9 +117,10 @@ func handleImageCommand(bot *tgbotapi.BotAPI, update tgbotapi.Update) error {
 		return fmt.Errorf("unauthorized user: %d", update.Message.From.ID)
 	}
 
-	filename, imageData, err := generateImage(update.Message.Text)
+	imageDescription := strings.TrimPrefix(update.Message.Text, "/image ")
+	filename, imageData, err := generateImage(imageDescription)
 	if err != nil {
-		return fmt.Errorf("failed to send message to ChatGPT: %w", err)
+		return sendTelegramMessage(bot, update.Message.Chat.ID, err.Error(), update.Message.MessageID)
 	}
 
 	return sendTelegramImage(bot, update.Message.Chat.ID, update.Message.MessageID, filename, imageData)
@@ -145,7 +146,7 @@ func handleChatMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update) error {
 
 	response, err := sendToChatGPT(update.Message.Text)
 	if err != nil {
-		return fmt.Errorf("failed to send message to ChatGPT: %w", err)
+		return sendTelegramMessage(bot, update.Message.Chat.ID, err.Error(), update.Message.MessageID)
 	}
 
 	return sendTelegramMessage(bot, update.Message.Chat.ID, response, update.Message.MessageID)
@@ -165,9 +166,9 @@ type CreateImageResponse struct {
 	} `json:"data"`
 }
 
-func generateImage(text string) (string, []byte, error) {
+func generateImage(description string) (string, []byte, error) {
 	request := CreateImageRequest{
-		Prompt:         text,
+		Prompt:         description,
 		Number:         numberOfImages,
 		Size:           imageSize,
 		ResponseFormat: imageResponseFormat,
@@ -177,6 +178,8 @@ func generateImage(text string) (string, []byte, error) {
 	if err != nil {
 		return "", nil, err
 	}
+
+	log.Printf("create image request for: '%s', body: %+v", description, string(bodyBytes))
 
 	req, err := http.NewRequest(http.MethodPost, imageGenerationEndpoint, bytes.NewReader(bodyBytes))
 	if err != nil {
@@ -195,19 +198,17 @@ func generateImage(text string) (string, []byte, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		return "", nil, fmt.Errorf("invalid status code: %d", resp.StatusCode)
-	}
-
 	responseData, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("Error reading response: %v\n", err)
 		return "", nil, err
 	}
 
+	if resp.StatusCode != 200 {
+		return "", nil, fmt.Errorf("invalid status code: %d, body: %+v", resp.StatusCode, string(responseData))
+	}
+
 	var response CreateImageResponse
-	err = json.Unmarshal(responseData, &response)
-	if err != nil {
+	if err = json.Unmarshal(responseData, &response); err != nil {
 		return "", nil, err
 	}
 
