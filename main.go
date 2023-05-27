@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -18,14 +19,15 @@ import (
 
 const (
 	imageGenerationEndpoint = "https://api.openai.com/v1/images/generations"
-	numberOfImages          = 1
-	imageSize               = "256x256"
+	imageSize               = "1024x1024"
 	imageResponseFormat     = "b64_json"
 )
 
 var (
 	authorizedUserIDs []int64
 	client            *goopenai.Client
+	imageCommandRegexp = regexp.MustCompile(`/image(-*\d*)\s+(.*)`)
+	httpClient = http.Client{}
 )
 
 func main() {
@@ -37,7 +39,7 @@ func main() {
 
 	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_BOT_TOKEN"))
 	if err != nil {
-		log.Fatalf("failed to create Telegram bot: %w", err)
+		log.Fatalf("failed to create Telegram bot: %v", err)
 	}
 
 	bot.Debug = true
@@ -117,18 +119,36 @@ func handleImageCommand(bot *tgbotapi.BotAPI, update tgbotapi.Update) error {
 		return fmt.Errorf("unauthorized user: %d", update.Message.From.ID)
 	}
 
-	imageDescription := strings.TrimPrefix(update.Message.Text, "/image ")
-	filename, imageData, err := generateImage(imageDescription)
+	num, prompt := parseImageCommand(update.Message.Text)
+	imageBinarySlice, err := generateImages(num, prompt)
 	if err != nil {
 		return sendTelegramMessage(bot, update.Message.Chat.ID, err.Error(), update.Message.MessageID)
 	}
 
-	return sendTelegramImage(bot, update.Message.Chat.ID, update.Message.MessageID, filename, imageData)
+	for _, imageBinary := range imageBinarySlice {
+		sendTelegramImage(bot, update.Message.Chat.ID, update.Message.MessageID, imageBinary)
+	}
+
+	return nil
 }
 
-func sendTelegramImage(bot *tgbotapi.BotAPI, chatID int64, replyToMessageID int, filename string, imageData []byte) error {
+func parseImageCommand(command string) (int, string) {
+	match := imageCommandRegexp.FindStringSubmatch(command)
+	if len(match) > 2 {
+		numOfImagesStr := match[1]
+		numOfImages, _ := strconv.Atoi(numOfImagesStr)
+		if numOfImages < 2 {
+			numOfImages = 1
+		}
+		prompt := match[2]
+		return numOfImages, prompt
+	}
+
+	return 1, command
+}
+
+func sendTelegramImage(bot *tgbotapi.BotAPI, chatID int64, replyToMessageID int, imageData []byte) error {
 	fileBytes := tgbotapi.FileBytes{
-		Name:  filename,
 		Bytes: imageData,
 	}
 	msg := tgbotapi.NewPhoto(chatID, fileBytes)
@@ -166,20 +186,20 @@ type CreateImageResponse struct {
 	} `json:"data"`
 }
 
-func generateImage(description string) (string, []byte, error) {
+func generateImages(num int, prompt string) ([][]byte, error) {
 	request := CreateImageRequest{
-		Prompt:         description,
-		Number:         numberOfImages,
+		Prompt:         prompt,
+		Number:         num,
 		Size:           imageSize,
 		ResponseFormat: imageResponseFormat,
 	}
 
 	bodyBytes, err := json.Marshal(request)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 
-	log.Printf("create image request for: '%s', body: %+v", description, string(bodyBytes))
+	log.Printf("create image request: %+v", string(bodyBytes))
 
 	req, err := http.NewRequest(http.MethodPost, imageGenerationEndpoint, bytes.NewReader(bodyBytes))
 	if err != nil {
@@ -190,29 +210,31 @@ func generateImage(description string) (string, []byte, error) {
 	req.Header.Add("Authorization", bearer)
 	req.Header.Set("Content-Type", "application/json")
 
-	httpClient := &http.Client{}
-
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	responseData, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 
 	if resp.StatusCode != 200 {
-		return "", nil, fmt.Errorf("invalid status code: %d, body: %+v", resp.StatusCode, string(responseData))
+		return nil, fmt.Errorf("invalid status code: %d, body: %+v", resp.StatusCode, string(responseData))
 	}
 
 	var response CreateImageResponse
 	if err = json.Unmarshal(responseData, &response); err != nil {
-		return "", nil, err
+		return nil, err
 	}
 
-	return string(response.Created), response.Data[0].B64JSON, nil
+	var res [][]byte
+	for _, b := range response.Data {
+		res = append(res, b.B64JSON)
+	}
+	return res, nil
 }
 
 func isAuthorizedUser(userID int64) bool {
