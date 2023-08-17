@@ -37,9 +37,9 @@ jobs:
       - name: Deploy to Digital Ocean droplet via SSH
         uses: appleboy/ssh-action@v0.1.4
         with:
-          host: ${{ secrets.DROPLET_HOST }}
-          username: ${{ secrets.DROPLET_USERNAME }}
-          key: ${{ secrets.DROPLET_SSH_KEY }}
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           envs: IMAGE_NAME,CONTAINER_REGISTRY,DIGITALOCEAN_ACCESS_TOKEN,GITHUB_SHA,TELEGRAM_BOT_TOKEN,GPT_TOKEN,TELEGRAM_AUTHORIZED_USER_IDS
           script: |
             # Login to DO registry and pull the new image
