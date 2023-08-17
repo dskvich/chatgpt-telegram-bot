@@ -1,6 +1,0 @@
-apiVersion: v2
-appVersion: "1.0"
-description: A Helm chart for the chatgpt-telegram-bot service
-name: chatgpt-telegram-bot
-# The effective version will be computed during Helm generation
-version: 0.0.1
