@@ -1,60 +1,31 @@
-name: Deploy to GCP
+name: Deploy to DigitalOcean Droplet
 
 on:
   push:
     branches: [ master ]
 
 env:
-  SERVICE_NAME: chatgpt-telegram-bot
-  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  GITHUB_SHA: ${{ github.sha }}
+  CONTAINER_REGISTRY: registry.digitalocean.com/dmsuhub
+  IMAGE_NAME: chatgpt-telegram-bot
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v1
+      - name: Build container image
+        run: docker build -t $CONTAINER_REGISTRY/$IMAGE_NAME:$GITHUB_SHA .
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
         with:
-          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
-        with:
-          install_components: gke-gcloud-auth-plugin
+      - name: Log in to DigitalOcean Container Registry
+        run: doctl registry login --expiry-seconds 600
 
-      - name: Configure Docker
-        run: |
-          gcloud auth configure-docker --quiet
-
-      - name: Build Docker Image
-        run: |
-          docker build -t gcr.io/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ env.GITHUB_SHA }} .
-
-      - name: Push Docker Image
-        run: |
-          docker push gcr.io/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ env.GITHUB_SHA }}
-
-      - name: Install Helm
-        run: |
-          curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
-
-      - name: Authenticate to GKE
-        uses: google-github-actions/get-gke-credentials@v1
-        with:
-          cluster_name: cluster-1
-          location: us-central1-c
-
-      - name: Deploy Application
-        run: |
-          helm upgrade --install ${{ env.SERVICE_NAME }} ./helm-chart \
-            --set 'SERVICE_NAME=${{ env.SERVICE_NAME }}' \
-            --set 'IMAGE_NAME=gcr.io/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ env.GITHUB_SHA }}' \
-            --set 'TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}' \
-            --set 'GPT_TOKEN=${{ secrets.GPT_TOKEN }}' \
-            --set 'TELEGRAM_AUTHORIZED_USER_IDS=${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS }}' \
-            --wait
+      - name: Push image to DigitalOcean Container Registry
+        run: docker push $CONTAINER_REGISTRY/$IMAGE_NAME:$GITHUB_SHA
