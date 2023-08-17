@@ -1,6 +1,6 @@
 module chatgpt-telegram-bot
 
-go 1.20
+go 1.21
 
 require (
 	github.com/franciscoescher/goopenai v0.4.0
