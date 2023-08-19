@@ -274,7 +274,7 @@ func downloadFile(api *tgbotapi.BotAPI, fileID string) (string, error) {
 		return "", fmt.Errorf("error getting file: %v", err)
 	}
 
-	filePath := path.Join("temp", "downloads", file.FilePath)
+	filePath := path.Join("app", "downloads", file.FilePath)
 
 	req, err := createRequest(file.Link(api.Token))
 	if err != nil {
