@@ -4,8 +4,12 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"os"
+	"os/exec"
+	"path"
 	"strings"
 	"sync"
 
@@ -27,6 +31,7 @@ type Command struct {
 	FromID    int64
 	FromUser  string
 	Text      string
+	FileID    string
 }
 
 func main() {
@@ -63,7 +68,7 @@ func main() {
 
 	for update := range bot.GetUpdatesChan(u) {
 		if update.CallbackQuery != nil {
-			executor.Execute(&Command{
+			executor.HandleTextCommand(&Command{
 				MessageID: update.CallbackQuery.Message.ReplyToMessage.MessageID,
 				ChatID:    update.CallbackQuery.Message.Chat.ID,
 				FromID:    update.CallbackQuery.From.ID,
@@ -72,13 +77,28 @@ func main() {
 			})
 		}
 		if update.Message != nil {
-			executor.Execute(&Command{
-				MessageID: update.Message.MessageID,
-				ChatID:    update.Message.Chat.ID,
-				FromID:    update.Message.From.ID,
-				FromUser:  update.Message.From.UserName,
-				Text:      update.Message.Text,
-			})
+			if update.Message.Text != "" {
+				executor.HandleTextCommand(&Command{
+					MessageID: update.Message.MessageID,
+					ChatID:    update.Message.Chat.ID,
+					FromID:    update.Message.From.ID,
+					FromUser:  update.Message.From.UserName,
+					Text:      update.Message.Text,
+				})
+			}
+
+			if update.Message.Voice != nil || update.Message.Audio != nil {
+				if update.Message.Voice != nil {
+					executor.HandleAudioCommand(&Command{
+						MessageID: update.Message.MessageID,
+						ChatID:    update.Message.Chat.ID,
+						FromID:    update.Message.From.ID,
+						FromUser:  update.Message.From.UserName,
+						FileID:    update.Message.Voice.FileID,
+					})
+				}
+			}
+
 		}
 	}
 }
@@ -89,7 +109,33 @@ type Executor struct {
 	gpt               *GptClient
 }
 
-func (e *Executor) Execute(c *Command) {
+func (e *Executor) HandleAudioCommand(c *Command) {
+	// Authorization check
+	if !slices.Contains(e.authorizedUserIDs, c.FromID) {
+		e.tg.SendMessage(c, fmt.Sprintf("user ID %d not authorized to use this bot", c.FromID))
+	}
+
+	filePath, err := downloadFile(e.tg.bot, c.FileID)
+	if err != nil {
+		e.tg.SendMessage(c, fmt.Sprintf("Failed to download file: %v", err))
+		return
+	}
+
+	text, err := e.gpt.SpeechToText(filePath)
+	if err != nil {
+		e.tg.SendMessage(c, fmt.Sprintf("Failed to transcript audio file: %v", err))
+		return
+	}
+
+	msg, err := e.gpt.GenerateMessageInChat(text, c.ChatID)
+	if err != nil {
+		e.tg.SendMessage(c, fmt.Sprintf("Failed to get response: %v", err))
+		return
+	}
+	e.tg.SendMessage(c, msg)
+}
+
+func (e *Executor) HandleTextCommand(c *Command) {
 	// Authorization check
 	if !slices.Contains(e.authorizedUserIDs, c.FromID) {
 		e.tg.SendMessage(c, fmt.Sprintf("user ID %d not authorized to use this bot", c.FromID))
@@ -154,6 +200,19 @@ type GptClient struct {
 	mu           sync.Mutex
 }
 
+func (g *GptClient) SpeechToText(filePath string) (string, error) {
+	req := openai.AudioRequest{
+		Model:    openai.Whisper1,
+		FilePath: filePath,
+	}
+	resp, err := g.client.CreateTranscription(context.Background(), req)
+	if err != nil {
+		return "", fmt.Errorf("creating transcription: %v", err)
+	}
+
+	return resp.Text, nil
+}
+
 func (g *GptClient) GenerateImage(prompt string) ([]byte, error) {
 	req := openai.ImageRequest{
 		Prompt:         prompt,
@@ -207,4 +266,86 @@ func (g *GptClient) GenerateMessageInChat(prompt string, chatID int64) (string, 
 	}
 
 	return "", fmt.Errorf("no completion response from chatGPT")
+}
+
+func downloadFile(api *tgbotapi.BotAPI, fileID string) (string, error) {
+	file, err := getFile(api, fileID)
+	if err != nil {
+		return "", fmt.Errorf("error getting file: %v", err)
+	}
+
+	filePath := path.Join("temp", "downloads", file.FilePath)
+
+	req, err := createRequest(file.Link(api.Token))
+	if err != nil {
+		return "", fmt.Errorf("error creating request: %v", err)
+	}
+
+	data, err := downloadFileData(api, req)
+	if err != nil {
+		return "", fmt.Errorf("error getting file URL: %v", err)
+	}
+
+	if err := saveFile(filePath, data); err != nil {
+		return "", fmt.Errorf("error saving file: %v", err)
+	}
+
+	if path.Ext(filePath) == ".ogg" || path.Ext(filePath) == ".oga" {
+		nfilePath, err := ConvertAudioToMp3(filePath)
+		defer func(name string) {
+			_ = os.Remove(name)
+		}(filePath)
+		if err != nil {
+			return "", fmt.Errorf("error converting file: %v", err)
+		}
+		return nfilePath, nil
+	}
+
+	return filePath, nil
+}
+
+func getFile(api *tgbotapi.BotAPI, fileID string) (tgbotapi.File, error) {
+	return api.GetFile(tgbotapi.FileConfig{FileID: fileID})
+}
+
+func createRequest(url string) (*http.Request, error) {
+	return http.NewRequest(http.MethodGet, url, nil)
+}
+
+func downloadFileData(api *tgbotapi.BotAPI, req *http.Request) ([]byte, error) {
+	resp, err := api.Client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
+
+	return io.ReadAll(resp.Body)
+}
+
+func saveFile(filePath string, data []byte) error {
+	if err := os.MkdirAll(path.Dir(filePath), 0755); err != nil {
+		return fmt.Errorf("saving file: %v", err)
+	}
+	return os.WriteFile(filePath, data, 0600)
+}
+
+func ConvertAudioToMp3(filePath string) (string, error) {
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		return "", fmt.Errorf("unable to locate `ffmpeg`: %w", err)
+	}
+
+	npath := filePath + ".mp3"
+
+	cmd := exec.Command("ffmpeg", "-i", filePath, npath)
+	b, err := cmd.CombinedOutput()
+
+	fmt.Println(string(b))
+
+	if err != nil {
+		return npath, fmt.Errorf("ffmpeg error: %v", err)
+	}
+
+	return npath, nil
 }
