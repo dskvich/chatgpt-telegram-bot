@@ -51,7 +51,6 @@ jobs:
             docker rm $IMAGE_NAME || true
             docker run -d \
             --name $IMAGE_NAME \
-            -p 3000:3000 \
             -e TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
             -e GPT_TOKEN=${{ secrets.GPT_TOKEN }} \
             -e TELEGRAM_AUTHORIZED_USER_IDS="${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS }}" \
