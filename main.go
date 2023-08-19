@@ -1,268 +1,210 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/base64"
 	"fmt"
-	"io"
-	"log"
-	"net/http"
+	"log/slog"
 	"os"
-	"regexp"
-	"strconv"
 	"strings"
+	"sync"
 
-	"github.com/franciscoescher/goopenai"
+	"github.com/caarlos0/env/v9"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	openai "github.com/sashabaranov/go-openai"
+	"golang.org/x/exp/slices"
 )
 
-const (
-	imageGenerationEndpoint = "https://api.openai.com/v1/images/generations"
-	imageSize               = "1024x1024"
-	imageResponseFormat     = "b64_json"
-)
+type Config struct {
+	GptToken                  string  `env:"GPT_TOKEN"`
+	TelegramBotToken          string  `env:"TELEGRAM_BOT_TOKEN"`
+	TelegramAuthorizedUserIDs []int64 `env:"TELEGRAM_AUTHORIZED_USER_IDS" envSeparator:" "`
+}
 
-var (
-	authorizedUserIDs []int64
-	client            *goopenai.Client
-	imageCommandRegexp = regexp.MustCompile(`/image(-*\d*)\s+(.*)`)
-	httpClient = http.Client{}
-)
+type Command struct {
+	MessageID int
+	ChatID    int64
+	FromID    int64
+	FromUser  string
+	Text      string
+}
 
 func main() {
-	authorizedUserIDs = parseAuthorizedUserIDs(os.Getenv("TELEGRAM_AUTHORIZED_USER_IDS"))
-	client = goopenai.NewClient(os.Getenv("GPT_TOKEN"), "")
+	cfg := Config{}
+	if err := env.Parse(&cfg); err != nil {
+		slog.Error("parsing env config", "err", err)
+		os.Exit(1)
+	}
 
-	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_BOT_TOKEN"))
+	slog.Info("config", "authorized users", cfg.TelegramAuthorizedUserIDs)
+
+	var err error
+	bot, err := tgbotapi.NewBotAPI(cfg.TelegramBotToken)
 	if err != nil {
-		log.Fatalf("failed to create Telegram bot: %v", err)
+		slog.Error("creating telegram bot", "err", err)
+		os.Exit(1)
 	}
 
 	bot.Debug = true
 
-	log.Printf("Authorized on account %s", bot.Self.UserName)
+	slog.Info("authorized on telegram", "account", bot.Self.UserName)
+
+	executor := Executor{
+		authorizedUserIDs: cfg.TelegramAuthorizedUserIDs,
+		tg:                &TelegramSender{bot},
+		gpt: &GptClient{
+			client:       openai.NewClient(cfg.GptToken),
+			chatMessages: make(map[int64][]openai.ChatCompletionMessage),
+		},
+	}
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
-	updates := bot.GetUpdatesChan(u)
-	for update := range updates {
+	for update := range bot.GetUpdatesChan(u) {
+		if update.CallbackQuery != nil {
+			executor.Execute(&Command{
+				MessageID: update.CallbackQuery.Message.ReplyToMessage.MessageID,
+				ChatID:    update.CallbackQuery.Message.Chat.ID,
+				FromID:    update.CallbackQuery.From.ID,
+				FromUser:  update.CallbackQuery.From.UserName,
+				Text:      update.CallbackQuery.Data,
+			})
+		}
 		if update.Message != nil {
-			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
-
-			if strings.HasPrefix(update.Message.Text, "/userid") {
-				if err := handleUserIDCommand(bot, update); err != nil {
-					log.Println(err)
-					continue
-				}
-			}
-
-			if strings.HasPrefix(update.Message.Text, "/image") {
-				if err := handleImageCommand(bot, update); err != nil {
-					log.Println(err)
-					continue
-				}
-			} else {
-				if err := handleChatMessage(bot, update); err != nil {
-					log.Println(err)
-					continue
-				}
-			}
+			executor.Execute(&Command{
+				MessageID: update.Message.MessageID,
+				ChatID:    update.Message.Chat.ID,
+				FromID:    update.Message.From.ID,
+				FromUser:  update.Message.From.UserName,
+				Text:      update.Message.Text,
+			})
 		}
 	}
 }
 
-func parseAuthorizedUserIDs(str string) []int64 {
-	if str == "" {
-		return nil
+type Executor struct {
+	authorizedUserIDs []int64
+	tg                *TelegramSender
+	gpt               *GptClient
+}
+
+func (e *Executor) Execute(c *Command) {
+	// Authorization check
+	if !slices.Contains(e.authorizedUserIDs, c.FromID) {
+		e.tg.SendMessage(c, fmt.Sprintf("user ID %d not authorized to use this bot", c.FromID))
 	}
 
-	var res []int64
-
-	ids := strings.Split(str, " ")
-	for _, id := range ids {
-		userID, err := strconv.ParseInt(id, 10, 64)
+	switch {
+	case strings.HasPrefix(c.Text, "/new_chat"):
+		e.gpt.ClearHistoryInChat(c.ChatID)
+		e.tg.SendMessage(c, fmt.Sprintf("New chat created."))
+	case strings.HasPrefix(c.Text, "/image"):
+		imgBytes, err := e.gpt.GenerateImage(c.Text)
 		if err != nil {
-			log.Printf("Error converting string '%s' to int64: %v\n", id, err)
-			continue
+			e.tg.SendMessage(c, fmt.Sprintf("Failed to generate image: %v", err))
+			return
 		}
-		res = append(res, userID)
-	}
 
-	return res
-}
-
-func handleUserIDCommand(bot *tgbotapi.BotAPI, update tgbotapi.Update) error {
-	response := fmt.Sprintf("Your user ID is %d", update.Message.From.ID)
-	return sendTelegramMessage(bot, update.Message.Chat.ID, response, update.Message.MessageID)
-}
-
-func sendTelegramMessage(bot *tgbotapi.BotAPI, chatID int64, text string, replyToMessageID int) error {
-	msg := tgbotapi.NewMessage(chatID, text)
-	msg.ReplyToMessageID = replyToMessageID
-	if _, err := bot.Send(msg); err != nil {
-		return fmt.Errorf("failed to send message via Telegram bot: %w", err)
-	}
-	return nil
-}
-
-func handleImageCommand(bot *tgbotapi.BotAPI, update tgbotapi.Update) error {
-	if len(authorizedUserIDs) > 0 && !isAuthorizedUser(update.Message.From.ID) {
-		return fmt.Errorf("unauthorized user: %d", update.Message.From.ID)
-	}
-
-	num, prompt := parseImageCommand(update.Message.Text)
-	imageBinarySlice, err := generateImages(num, prompt)
-	if err != nil {
-		return sendTelegramMessage(bot, update.Message.Chat.ID, err.Error(), update.Message.MessageID)
-	}
-
-	for _, imageBinary := range imageBinarySlice {
-		sendTelegramImage(bot, update.Message.Chat.ID, update.Message.MessageID, imageBinary)
-	}
-
-	return nil
-}
-
-func parseImageCommand(command string) (int, string) {
-	match := imageCommandRegexp.FindStringSubmatch(command)
-	if len(match) > 2 {
-		numOfImagesStr := match[1]
-		numOfImages, _ := strconv.Atoi(numOfImagesStr)
-		if numOfImages < 2 {
-			numOfImages = 1
+		e.tg.SendImage(c, imgBytes)
+	default:
+		msg, err := e.gpt.GenerateMessageInChat(c.Text, c.ChatID)
+		if err != nil {
+			e.tg.SendMessage(c, fmt.Sprintf("Failed to get response: %v", err))
+			return
 		}
-		prompt := match[2]
-		return numOfImages, prompt
+		e.tg.SendMessage(c, msg)
 	}
-
-	return 1, command
 }
 
-func sendTelegramImage(bot *tgbotapi.BotAPI, chatID int64, replyToMessageID int, imageData []byte) error {
+type TelegramSender struct {
+	bot *tgbotapi.BotAPI
+}
+
+func (s *TelegramSender) SendMessage(c *Command, text string) {
+	msg := tgbotapi.NewMessage(c.ChatID, text)
+	msg.ReplyToMessageID = c.MessageID
+	if _, err := s.bot.Send(msg); err != nil {
+		slog.Error("sending message to telegram", "err", err)
+	}
+}
+
+func (s *TelegramSender) SendImage(m *Command, bytes []byte) {
 	fileBytes := tgbotapi.FileBytes{
-		Bytes: imageData,
+		Bytes: bytes,
 	}
-	msg := tgbotapi.NewPhoto(chatID, fileBytes)
-	msg.ReplyToMessageID = replyToMessageID
-	if _, err := bot.Send(msg); err != nil {
-		return fmt.Errorf("failed to send image via Telegram bot: %w", err)
+	msg := tgbotapi.NewPhoto(m.ChatID, fileBytes)
+	msg.ReplyToMessageID = m.MessageID
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Еще", m.Text),
+		),
+	)
+	msg.ReplyMarkup = keyboard
+
+	if _, err := s.bot.Send(msg); err != nil {
+		slog.Error("sending image to telegram", "err", err)
 	}
-	return nil
 }
 
-func handleChatMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update) error {
-	if len(authorizedUserIDs) > 0 && !isAuthorizedUser(update.Message.From.ID) {
-		return fmt.Errorf("unauthorized user: %d", update.Message.From.ID)
-	}
-
-	response, err := sendToChatGPT(update.Message.Text)
-	if err != nil {
-		return sendTelegramMessage(bot, update.Message.Chat.ID, err.Error(), update.Message.MessageID)
-	}
-
-	return sendTelegramMessage(bot, update.Message.Chat.ID, response, update.Message.MessageID)
+type GptClient struct {
+	client       *openai.Client
+	chatMessages map[int64][]openai.ChatCompletionMessage
+	mu           sync.Mutex
 }
 
-type CreateImageRequest struct {
-	Prompt         string `json:"prompt"`
-	Number         int    `json:"n"`
-	Size           string `json:"size"`
-	ResponseFormat string `json:"response_format"`
-}
-
-type CreateImageResponse struct {
-	Created int `json:"created"`
-	Data    []struct {
-		B64JSON []byte `json:"b64_json"`
-	} `json:"data"`
-}
-
-func generateImages(num int, prompt string) ([][]byte, error) {
-	request := CreateImageRequest{
+func (g *GptClient) GenerateImage(prompt string) ([]byte, error) {
+	req := openai.ImageRequest{
 		Prompt:         prompt,
-		Number:         num,
-		Size:           imageSize,
-		ResponseFormat: imageResponseFormat,
+		Size:           openai.CreateImageSize512x512,
+		ResponseFormat: openai.CreateImageResponseFormatB64JSON,
+		N:              1,
 	}
 
-	bodyBytes, err := json.Marshal(request)
+	resp, err := g.client.CreateImage(context.Background(), req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating image: %v", err)
 	}
 
-	log.Printf("create image request: %+v", string(bodyBytes))
-
-	req, err := http.NewRequest(http.MethodPost, imageGenerationEndpoint, bytes.NewReader(bodyBytes))
+	imgBytes, err := base64.StdEncoding.DecodeString(resp.Data[0].B64JSON)
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("base64 decoding: %v", err)
 	}
 
-	bearer := "Bearer " + os.Getenv("GPT_TOKEN")
-	req.Header.Add("Authorization", bearer)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	responseData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("invalid status code: %d, body: %+v", resp.StatusCode, string(responseData))
-	}
-
-	var response CreateImageResponse
-	if err = json.Unmarshal(responseData, &response); err != nil {
-		return nil, err
-	}
-
-	var res [][]byte
-	for _, b := range response.Data {
-		res = append(res, b.B64JSON)
-	}
-	return res, nil
+	return imgBytes, nil
 }
 
-func isAuthorizedUser(userID int64) bool {
-	for _, id := range authorizedUserIDs {
-		if id == userID {
-			return true
-		}
-	}
+func (g *GptClient) ClearHistoryInChat(chatID int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
-	return false
+	g.chatMessages[chatID] = nil
 }
 
-func sendToChatGPT(message string) (string, error) {
-	r := goopenai.CreateCompletionsRequest{
-		Model: "gpt-3.5-turbo",
-		Messages: []goopenai.Message{
-			{
-				Role:    "user",
-				Content: message,
-			},
+func (g *GptClient) GenerateMessageInChat(prompt string, chatID int64) (string, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.chatMessages[chatID] = append(g.chatMessages[chatID], openai.ChatCompletionMessage{
+		Role:    openai.ChatMessageRoleUser,
+		Content: prompt,
+	})
+
+	resp, err := g.client.CreateChatCompletion(
+		context.Background(),
+		openai.ChatCompletionRequest{
+			Model:    openai.GPT4,
+			Messages: g.chatMessages[chatID],
 		},
-	}
-
-	completions, err := client.CreateCompletions(context.Background(), r)
+	)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("chatGPT completion: %v", err)
 	}
 
-	if completions.Error.Message != "" {
-		return "", fmt.Errorf("chatGPT error: %s", completions.Error.Message)
+	if len(resp.Choices) > 0 && resp.Choices[0].Message.Content != "" {
+		return resp.Choices[0].Message.Content, nil
 	}
 
-	if len(completions.Choices) > 0 && completions.Choices[0].Message.Content != "" {
-		return completions.Choices[0].Message.Content, nil
-	}
-
-	return "", fmt.Errorf("no completion response from ChatGPT")
+	return "", fmt.Errorf("no completion response from chatGPT")
 }
