@@ -12,30 +12,15 @@ ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 RUN go mod download
 RUN go build -ldflags="-s -w" -o main main.go
 
-# Create appuser.
-ENV USER=appuser
-ENV UID=10001
-# See https://stackoverflow.com/a/55757473/12429735RUN
-RUN adduser \
-    --disabled-password \
-    --gecos "" \
-    --home "/nonexistent" \
-    --shell "/sbin/nologin" \
-    --no-create-home \
-    --uid "${UID}" \
-    "${USER}"
 
-FROM scratch
+FROM alpine
 
 WORKDIR /app
 
-COPY --from=builder --chown=appuser:appuser /app/ /app/
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /etc/passwd /etc/passwd
-COPY --from=builder /etc/group /etc/group
 COPY --from=builder /app/main ./
 
-# Use an unprivileged user.
-USER appuser:appuser
+# Run under non-privileged user with minimal write permissions
+RUN adduser -S -D -H user
+USER user
 
 CMD ["./main"]
