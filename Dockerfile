@@ -34,8 +34,6 @@ COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/group /etc/group
 COPY --from=builder /app/main ./
 
-RUN mkdir /app/downloads && chown appuser:appuser /app/downloads
-
 # Use an unprivileged user.
 USER appuser:appuser
 
