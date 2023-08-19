@@ -42,19 +42,38 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           envs: IMAGE_NAME,CONTAINER_REGISTRY,GITHUB_SHA
           script: |
-            # Login to DO registry and pull the new image
+            echo "Logging into Digital Ocean Registry..."
             docker login -u ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} -p ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} registry.digitalocean.com
-            docker pull $CONTAINER_REGISTRY/$IMAGE_NAME:$GITHUB_SHA
+            docker pull $CONTAINER_REGISTRY/$IMAGE_NAME:$GITHUB_SHA || { echo "Failed to pull Docker image."; exit 1; }
 
-            # Replace the running container with the new image
-            docker stop $IMAGE_NAME || true
-            docker rm $IMAGE_NAME || true
+            docker stop $IMAGE_NAME || echo "No existing container to stop."
+            docker rm $IMAGE_NAME || echo "No existing container to remove."
+            
+            echo "Starting new Docker container..."
             docker run -d \
             --name $IMAGE_NAME \
             -e TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
             -e GPT_TOKEN=${{ secrets.GPT_TOKEN }} \
             -e TELEGRAM_AUTHORIZED_USER_IDS="${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS }}" \
             $CONTAINER_REGISTRY/$IMAGE_NAME:$GITHUB_SHA
-
-            # Clean up unused Docker data
+            
+            echo "Cleaning up..."
             docker system prune -f
+            
+            RETRY=5
+            while [ $RETRY -gt 0 ]; do
+              if docker ps | grep -q $IMAGE_NAME; then
+                echo "Container $IMAGE_NAME started successfully."
+                break
+              else
+                let $RETRY-=1
+                echo "Waiting for the container to start. Retries left: $RETRY"
+                sleep 5
+              fi
+            done
+            
+            if [ $RETRY -eq 0 ]
+            then
+              echo "Container $IMAGE_NAME failed to start."
+              exit 1
+            fi
