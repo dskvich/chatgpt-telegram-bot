@@ -99,7 +99,7 @@ func (e *Executor) Execute(c *Command) {
 	case strings.HasPrefix(c.Text, "/new_chat"):
 		e.gpt.ClearHistoryInChat(c.ChatID)
 		e.tg.SendMessage(c, fmt.Sprintf("New chat created."))
-	case strings.HasPrefix(c.Text, "/image"):
+	case strings.HasPrefix(strings.ToLower(c.Text), "нарисуй"):
 		imgBytes, err := e.gpt.GenerateImage(c.Text)
 		if err != nil {
 			e.tg.SendMessage(c, fmt.Sprintf("Failed to generate image: %v", err))
