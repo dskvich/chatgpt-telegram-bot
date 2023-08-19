@@ -127,12 +127,10 @@ func (e *Executor) HandleAudioCommand(c *Command) {
 		return
 	}
 
-	msg, err := e.gpt.GenerateMessageInChat(text, c.ChatID)
-	if err != nil {
-		e.tg.SendMessage(c, fmt.Sprintf("Failed to get response: %v", err))
-		return
-	}
-	e.tg.SendMessage(c, msg)
+	slog.Info("transcript received", "text", text)
+
+	c.Text = text
+	e.HandleTextCommand(c)
 }
 
 func (e *Executor) HandleTextCommand(c *Command) {
