@@ -325,6 +325,7 @@ func downloadFileData(api *tgbotapi.BotAPI, req *http.Request) ([]byte, error) {
 }
 
 func saveFile(filePath string, data []byte) error {
+	slog.Info("saving file", "path", filePath, "dir", path.Dir(filePath))
 	if err := os.MkdirAll(path.Dir(filePath), 0755); err != nil {
 		return fmt.Errorf("saving file: %v", err)
 	}
