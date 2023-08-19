@@ -19,8 +19,4 @@ WORKDIR /app
 
 COPY --from=builder /app/main ./
 
-# Run under non-privileged user with minimal write permissions
-RUN adduser -S -D -H user
-USER user
-
 CMD ["./main"]
