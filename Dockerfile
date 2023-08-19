@@ -1,9 +1,6 @@
 FROM golang:1.21-alpine as builder
 
-# Add edge/testing repository for FFmpeg
-RUN echo "http://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
-
-RUN apk update && apk add --no-cache git ffmpeg
+RUN apk update && apk add --no-cache git
 
 WORKDIR /app
 
@@ -14,6 +11,10 @@ RUN go build -ldflags="-s -w" -o main main.go
 
 
 FROM alpine
+
+# Add edge/testing repository for FFmpeg
+RUN echo "http://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
+RUN apk update && apk add --no-cache ffmpeg
 
 WORKDIR /app
 
