@@ -143,7 +143,7 @@ func (e *Executor) HandleTextCommand(c *Command) {
 	case strings.HasPrefix(c.Text, "/new_chat"):
 		e.gpt.ClearHistoryInChat(c.ChatID)
 		e.tg.SendMessage(c, fmt.Sprintf("New chat created."))
-	case strings.HasPrefix(strings.ToLower(c.Text), "нарисуй"):
+	case strings.HasPrefix(strings.ToLower(c.Text), "нарисуй") || strings.Contains(strings.ToLower(c.Text), "рисуй"):
 		imgBytes, err := e.gpt.GenerateImage(c.Text)
 		if err != nil {
 			e.tg.SendMessage(c, fmt.Sprintf("Failed to generate image: %v", err))
