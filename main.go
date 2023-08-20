@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/caarlos0/env/v9"
 	"github.com/digitalocean/godo"
@@ -62,6 +64,9 @@ func main() {
 		gpt: &GptClient{
 			client:       openai.NewClient(cfg.GptToken),
 			chatMessages: make(map[int64][]openai.ChatCompletionMessage),
+			apiToken:     cfg.GptToken,
+			httpClient:   &http.Client{},
+			modelCosts:   defaultGptModelCosts(),
 		},
 		do: &DigitalOceanClient{
 			client: godo.NewFromToken(cfg.DigitalOceanAccessToken),
@@ -156,6 +161,13 @@ func (e *Executor) HandleTextCommand(c *Command) {
 			return
 		}
 		e.tg.SendMessage(c, bill)
+	case strings.HasPrefix(c.Text, "/usage"):
+		usage, err := e.gpt.GetUsage()
+		if err != nil {
+			e.tg.SendMessage(c, fmt.Sprintf("Failed to fetch OpenAI API usage data: %v", err))
+			return
+		}
+		e.tg.SendMessage(c, usage)
 	case strings.HasPrefix(strings.ToLower(c.Text), "нарисуй") || strings.Contains(strings.ToLower(c.Text), "рисуй"):
 		imgBytes, err := e.gpt.GenerateImage(c.Text)
 		if err != nil {
@@ -205,10 +217,143 @@ func (s *TelegramSender) SendImage(m *Command, bytes []byte) {
 	}
 }
 
+type GptModelCost struct {
+	Context   float64
+	Generated float64
+	Image     float64
+}
+
+func defaultGptModelCosts() map[string]GptModelCost {
+	return map[string]GptModelCost{
+		"gpt-3.5-turbo-0301":        {Context: 0.0015, Generated: 0.002},
+		"gpt-3.5-turbo-0613":        {Context: 0.0015, Generated: 0.002},
+		"gpt-3.5-turbo-16k":         {Context: 0.003, Generated: 0.004},
+		"gpt-3.5-turbo-16k-0613":    {Context: 0.003, Generated: 0.004},
+		"gpt-4-0314":                {Context: 0.03, Generated: 0.06},
+		"gpt-4-0613":                {Context: 0.03, Generated: 0.06},
+		"gpt-4-32k":                 {Context: 0.06, Generated: 0.12},
+		"gpt-4-32k-0314":            {Context: 0.06, Generated: 0.12},
+		"gpt-4-32k-0613":            {Context: 0.06, Generated: 0.12},
+		"text-embedding-ada-002-v2": {Context: 0.0001, Generated: 0},
+		"whisper-1":                 {Context: 0.006 / 60.0, Generated: 0},
+		"dalle-512x512":             {Image: 0.018},
+		"dalle-1024x1024":           {Image: 0.020},
+		"dalle-256x256":             {Image: 0.016},
+	}
+}
+
 type GptClient struct {
 	client       *openai.Client
 	chatMessages map[int64][]openai.ChatCompletionMessage
 	mu           sync.Mutex
+	apiToken     string
+	httpClient   *http.Client
+	modelCosts   map[string]GptModelCost
+}
+
+func (g *GptClient) GetUsage() (string, error) {
+	now := time.Now()
+	url := "https://api.openai.com/v1/usage?date=" + now.Format("2006-01-02")
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return "", fmt.Errorf("creating request: %v", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+g.apiToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("fetching usage data: %v", err)
+	}
+
+	var usageData GptUsageData
+	if err := json.NewDecoder(resp.Body).Decode(&usageData); err != nil {
+		return "", fmt.Errorf("decoding usage data: %v", err)
+	}
+
+	modelTotalCost := make(map[string]float64)
+
+	for model, cost := range g.calculateWhisperCost(usageData.WhisperApiData) {
+		modelTotalCost[model] += cost
+	}
+
+	for model, cost := range g.calculateModelCost(usageData.Data) {
+		modelTotalCost[model] += cost
+	}
+
+	for model, cost := range g.calculateDalleCost(usageData.DalleApiData) {
+		modelTotalCost[model] += cost
+	}
+
+	return g.generateUsageMessage(modelTotalCost), nil
+}
+
+func (g *GptClient) generateUsageMessage(totalCost map[string]float64) string {
+	var message string
+	var total float64
+
+	message = "OpenAI API Usage for today:\n\n"
+
+	for model, cost := range totalCost {
+		modelUsage := fmt.Sprintf("%s: $%.2f\n", model, cost)
+		message += modelUsage
+		total += cost
+	}
+
+	message += fmt.Sprintf("\nTotal: $%.2f", total)
+
+	return message
+}
+
+func (g *GptClient) calculateWhisperCost(whisperData []GptWhisperApiDataType) map[string]float64 {
+	totalCost := make(map[string]float64)
+
+	for _, data := range whisperData {
+		model := data.ModelId
+		cost, ok := g.modelCosts[model]
+		if ok {
+			contextCost := float64(data.NumSeconds) * cost.Context
+			totalCost[model] += contextCost
+		}
+	}
+
+	return totalCost
+}
+
+func (g *GptClient) calculateModelCost(usageData []GptDataType) map[string]float64 {
+	totalCost := make(map[string]float64)
+
+	for _, data := range usageData {
+		model := data.SnapshotId
+		contextTokens := data.NContextTokensTotal
+		generatedTokens := data.NGeneratedTokensTotal
+
+		cost, ok := g.modelCosts[model]
+		if ok {
+			contextCost := float64(contextTokens) / 1000.0 * cost.Context
+			generatedCost := float64(generatedTokens) / 1000.0 * cost.Generated
+			totalCost[model] += contextCost + generatedCost
+		}
+	}
+
+	return totalCost
+}
+
+func (g *GptClient) calculateDalleCost(usageData []GptDalleApiDataType) map[string]float64 {
+	totalCost := make(map[string]float64)
+
+	for _, data := range usageData {
+		model := fmt.Sprintf("dalle-%s", data.ImageSize)
+
+		cost, ok := g.modelCosts[model]
+		if ok {
+			totalCost[model] += float64(data.NumImages) * cost.Image
+		}
+	}
+
+	return totalCost
 }
 
 func (g *GptClient) SpeechToText(filePath string) (string, error) {
@@ -375,4 +520,39 @@ func (d *DigitalOceanClient) GetBalanceMessage() (string, error) {
 	res := fmt.Sprintf("Server Balance Info: \nMonth-To-Date Balance: $%v \nAccount Balance: $%v",
 		b.MonthToDateBalance, b.AccountBalance)
 	return res, nil
+}
+
+type GptDataType struct {
+	AggregationTimestamp  int    `json:"aggregation_timestamp"`
+	NRequests             int    `json:"n_requests"`
+	Operation             string `json:"operation"`
+	SnapshotId            string `json:"snapshot_id"`
+	NContext              int    `json:"n_context"`
+	NContextTokensTotal   int    `json:"n_context_tokens_total"`
+	NGenerated            int    `json:"n_generated"`
+	NGeneratedTokensTotal int    `json:"n_generated_tokens_total"`
+}
+
+type GptWhisperApiDataType struct {
+	Timestamp   int    `json:"timestamp"`
+	ModelId     string `json:"model_id"`
+	NumSeconds  int    `json:"num_seconds"`
+	NumRequests int    `json:"num_requests"`
+}
+
+type GptDalleApiDataType struct {
+	Timestamp   int    `json:"timestamp"`
+	NumImages   int    `json:"num_images"`
+	NumRequests int    `json:"num_requests"`
+	ImageSize   string `json:"image_size"`
+	Operation   string `json:"operation"`
+}
+
+type GptUsageData struct {
+	Object          string                  `json:"object"`
+	Data            []GptDataType           `json:"data"`
+	FtData          []interface{}           `json:"ft_data"`
+	DalleApiData    []GptDalleApiDataType   `json:"dalle_api_data"`
+	WhisperApiData  []GptWhisperApiDataType `json:"whisper_api_data"`
+	CurrentUsageUsd float64                 `json:"current_usage_usd"`
 }
