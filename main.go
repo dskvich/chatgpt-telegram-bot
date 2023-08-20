@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/caarlos0/env/v9"
+	"github.com/digitalocean/godo"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	openai "github.com/sashabaranov/go-openai"
 	"golang.org/x/exp/slices"
@@ -23,6 +24,7 @@ type Config struct {
 	GptToken                  string  `env:"GPT_TOKEN"`
 	TelegramBotToken          string  `env:"TELEGRAM_BOT_TOKEN"`
 	TelegramAuthorizedUserIDs []int64 `env:"TELEGRAM_AUTHORIZED_USER_IDS" envSeparator:" "`
+	DigitalOceanAccessToken   string  `env:"DIGITALOCEAN_ACCESS_TOKEN"`
 }
 
 type Command struct {
@@ -60,6 +62,9 @@ func main() {
 		gpt: &GptClient{
 			client:       openai.NewClient(cfg.GptToken),
 			chatMessages: make(map[int64][]openai.ChatCompletionMessage),
+		},
+		do: &DigitalOceanClient{
+			client: godo.NewFromToken(cfg.DigitalOceanAccessToken),
 		},
 	}
 
@@ -107,6 +112,7 @@ type Executor struct {
 	authorizedUserIDs []int64
 	tg                *TelegramSender
 	gpt               *GptClient
+	do                *DigitalOceanClient
 }
 
 func (e *Executor) HandleAudioCommand(c *Command) {
@@ -143,6 +149,13 @@ func (e *Executor) HandleTextCommand(c *Command) {
 	case strings.HasPrefix(c.Text, "/new_chat"):
 		e.gpt.ClearHistoryInChat(c.ChatID)
 		e.tg.SendMessage(c, fmt.Sprintf("New chat created."))
+	case strings.HasPrefix(c.Text, "/balance"):
+		bill, err := e.do.GetBalanceMessage()
+		if err != nil {
+			e.tg.SendMessage(c, fmt.Sprintf("Failed to fetch balance for DigitalOcean: %v", err))
+			return
+		}
+		e.tg.SendMessage(c, bill)
 	case strings.HasPrefix(strings.ToLower(c.Text), "нарисуй") || strings.Contains(strings.ToLower(c.Text), "рисуй"):
 		imgBytes, err := e.gpt.GenerateImage(c.Text)
 		if err != nil {
@@ -347,4 +360,19 @@ func ConvertAudioToMp3(filePath string) (string, error) {
 	}
 
 	return npath, nil
+}
+
+type DigitalOceanClient struct {
+	client *godo.Client
+}
+
+func (d *DigitalOceanClient) GetBalanceMessage() (string, error) {
+	b, _, err := d.client.Balance.Get(context.Background())
+	if err != nil {
+		return "", fmt.Errorf("fetching balance: %v", err)
+	}
+
+	res := fmt.Sprintf("Server Balance Info: \nMonth-To-Date Balance: $%v \nAccount Balance: $%v",
+		b.MonthToDateBalance, b.AccountBalance)
+	return res, nil
 }
