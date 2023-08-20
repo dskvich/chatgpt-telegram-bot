@@ -97,18 +97,15 @@ func main() {
 				})
 			}
 
-			if update.Message.Voice != nil || update.Message.Audio != nil {
-				if update.Message.Voice != nil {
-					executor.HandleAudioCommand(&Command{
-						MessageID: update.Message.MessageID,
-						ChatID:    update.Message.Chat.ID,
-						FromID:    update.Message.From.ID,
-						FromUser:  update.Message.From.UserName,
-						FileID:    update.Message.Voice.FileID,
-					})
-				}
+			if update.Message.Voice != nil {
+				executor.HandleAudioCommand(&Command{
+					MessageID: update.Message.MessageID,
+					ChatID:    update.Message.Chat.ID,
+					FromID:    update.Message.From.ID,
+					FromUser:  update.Message.From.UserName,
+					FileID:    update.Message.Voice.FileID,
+				})
 			}
-
 		}
 	}
 }
@@ -123,22 +120,22 @@ type Executor struct {
 func (e *Executor) HandleAudioCommand(c *Command) {
 	// Authorization check
 	if !slices.Contains(e.authorizedUserIDs, c.FromID) {
-		e.tg.SendMessage(c, fmt.Sprintf("user ID %d not authorized to use this bot", c.FromID))
+		e.tg.SendMessage(c, fmt.Sprintf("User ID %d not authorized to use this bot.", c.FromID))
 	}
 
 	filePath, err := downloadFile(e.tg.bot, c.FileID)
 	if err != nil {
-		e.tg.SendMessage(c, fmt.Sprintf("Failed to download file: %v", err))
+		e.tg.SendMessage(c, fmt.Sprintf("Failed to download audio file: %v", err))
 		return
 	}
 
 	text, err := e.gpt.SpeechToText(filePath)
 	if err != nil {
-		e.tg.SendMessage(c, fmt.Sprintf("Failed to transcript audio file: %v", err))
+		e.tg.SendMessage(c, fmt.Sprintf("Failed to transcribe audio file: %v", err))
 		return
 	}
 
-	slog.Info("transcript received", "text", text)
+	slog.Info("result transcript", "text", text)
 
 	c.Text = text
 	e.HandleTextCommand(c)
@@ -147,7 +144,7 @@ func (e *Executor) HandleAudioCommand(c *Command) {
 func (e *Executor) HandleTextCommand(c *Command) {
 	// Authorization check
 	if !slices.Contains(e.authorizedUserIDs, c.FromID) {
-		e.tg.SendMessage(c, fmt.Sprintf("user ID %d not authorized to use this bot", c.FromID))
+		e.tg.SendMessage(c, fmt.Sprintf("User ID %d not authorized to use this bot.", c.FromID))
 	}
 
 	switch {
@@ -157,7 +154,7 @@ func (e *Executor) HandleTextCommand(c *Command) {
 	case strings.HasPrefix(c.Text, "/balance"):
 		bill, err := e.do.GetBalanceMessage()
 		if err != nil {
-			e.tg.SendMessage(c, fmt.Sprintf("Failed to fetch balance for DigitalOcean: %v", err))
+			e.tg.SendMessage(c, fmt.Sprintf("Failed to fetch DigitalOcean balance: %v", err))
 			return
 		}
 		e.tg.SendMessage(c, bill)
@@ -168,10 +165,10 @@ func (e *Executor) HandleTextCommand(c *Command) {
 			return
 		}
 		e.tg.SendMessage(c, usage)
-	case strings.HasPrefix(strings.ToLower(c.Text), "нарисуй") || strings.Contains(strings.ToLower(c.Text), "рисуй"):
+	case strings.Contains(strings.ToLower(c.Text), "рисуй"):
 		imgBytes, err := e.gpt.GenerateImage(c.Text)
 		if err != nil {
-			e.tg.SendMessage(c, fmt.Sprintf("Failed to generate image: %v", err))
+			e.tg.SendMessage(c, fmt.Sprintf("Failed to generate image using Dall-E: %v", err))
 			return
 		}
 
@@ -179,7 +176,7 @@ func (e *Executor) HandleTextCommand(c *Command) {
 	default:
 		msg, err := e.gpt.GenerateMessageInChat(c.Text, c.ChatID)
 		if err != nil {
-			e.tg.SendMessage(c, fmt.Sprintf("Failed to get response: %v", err))
+			e.tg.SendMessage(c, fmt.Sprintf("Failed to get response from ChatGPT: %v", err))
 			return
 		}
 		e.tg.SendMessage(c, msg)
@@ -294,7 +291,7 @@ func (g *GptClient) generateUsageMessage(totalCost map[string]float64) string {
 	var message string
 	var total float64
 
-	message = "OpenAI API Usage for today:\n\n"
+	message = "OpenAI API Usage for Today:\n\n"
 
 	for model, cost := range totalCost {
 		modelUsage := fmt.Sprintf("%s: $%.2f\n", model, cost)
@@ -414,45 +411,45 @@ func (g *GptClient) GenerateMessageInChat(prompt string, chatID int64) (string, 
 		},
 	)
 	if err != nil {
-		return "", fmt.Errorf("chatGPT completion: %v", err)
+		return "", fmt.Errorf("creating completion: %v", err)
 	}
 
 	if len(resp.Choices) > 0 && resp.Choices[0].Message.Content != "" {
 		return resp.Choices[0].Message.Content, nil
 	}
 
-	return "", fmt.Errorf("no completion response from chatGPT")
+	return "", fmt.Errorf("no completion response")
 }
 
 func downloadFile(api *tgbotapi.BotAPI, fileID string) (string, error) {
 	file, err := getFile(api, fileID)
 	if err != nil {
-		return "", fmt.Errorf("error getting file: %v", err)
+		return "", fmt.Errorf("getting file: %v", err)
 	}
 
 	filePath := path.Join("app", file.FilePath)
 
 	req, err := createRequest(file.Link(api.Token))
 	if err != nil {
-		return "", fmt.Errorf("error creating request: %v", err)
+		return "", fmt.Errorf("creating request: %v", err)
 	}
 
 	data, err := downloadFileData(api, req)
 	if err != nil {
-		return "", fmt.Errorf("error getting file URL: %v", err)
+		return "", fmt.Errorf("getting file URL: %v", err)
 	}
 
 	if err := saveFile(filePath, data); err != nil {
-		return "", fmt.Errorf("error saving file: %v", err)
+		return "", fmt.Errorf("saving file: %v", err)
 	}
 
 	if path.Ext(filePath) == ".ogg" || path.Ext(filePath) == ".oga" {
-		nfilePath, err := ConvertAudioToMp3(filePath)
+		nfilePath, err := convertAudioToMp3(filePath)
 		defer func(name string) {
 			_ = os.Remove(name)
 		}(filePath)
 		if err != nil {
-			return "", fmt.Errorf("error converting file: %v", err)
+			return "", fmt.Errorf("converting file: %v", err)
 		}
 		return nfilePath, nil
 	}
@@ -488,23 +485,20 @@ func saveFile(filePath string, data []byte) error {
 	return os.WriteFile(filePath, data, 0600)
 }
 
-func ConvertAudioToMp3(filePath string) (string, error) {
+func convertAudioToMp3(filePath string) (string, error) {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		return "", fmt.Errorf("unable to locate `ffmpeg`: %w", err)
+		return "", fmt.Errorf("looking for `ffmpeg`: %w", err)
 	}
 
-	npath := filePath + ".mp3"
+	newFilePath := filePath + ".mp3"
 
-	cmd := exec.Command("ffmpeg", "-i", filePath, npath)
-	b, err := cmd.CombinedOutput()
-
-	fmt.Println(string(b))
-
+	cmd := exec.Command("ffmpeg", "-i", filePath, newFilePath)
+	_, err := cmd.CombinedOutput()
 	if err != nil {
-		return npath, fmt.Errorf("ffmpeg error: %v", err)
+		return newFilePath, fmt.Errorf("running `ffmpeg`: %v", err)
 	}
 
-	return npath, nil
+	return newFilePath, nil
 }
 
 type DigitalOceanClient struct {
@@ -517,7 +511,7 @@ func (d *DigitalOceanClient) GetBalanceMessage() (string, error) {
 		return "", fmt.Errorf("fetching balance: %v", err)
 	}
 
-	res := fmt.Sprintf("Server Balance Info: \nMonth-To-Date Balance: $%v \nAccount Balance: $%v",
+	res := fmt.Sprintf("Server Balance Info:\n\nMonth-To-Date Balance: $%v \nAccount Balance: $%v",
 		b.MonthToDateBalance, b.AccountBalance)
 	return res, nil
 }
