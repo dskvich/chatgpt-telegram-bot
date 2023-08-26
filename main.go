@@ -18,15 +18,15 @@ import (
 	"github.com/caarlos0/env/v9"
 	"github.com/digitalocean/godo"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	openai "github.com/sashabaranov/go-openai"
+	"github.com/sashabaranov/go-openai"
 	"golang.org/x/exp/slices"
 )
 
 type Config struct {
-	GptToken                  string  `env:"GPT_TOKEN"`
-	TelegramBotToken          string  `env:"TELEGRAM_BOT_TOKEN"`
+	GptToken                  string  `env:"GPT_TOKEN,required"`
+	TelegramBotToken          string  `env:"TELEGRAM_BOT_TOKEN,required"`
 	TelegramAuthorizedUserIDs []int64 `env:"TELEGRAM_AUTHORIZED_USER_IDS" envSeparator:" "`
-	DigitalOceanAccessToken   string  `env:"DIGITALOCEAN_ACCESS_TOKEN"`
+	DigitalOceanAccessToken   string  `env:"DIGITALOCEAN_ACCESS_TOKEN,required"`
 }
 
 type Command struct {
@@ -47,14 +47,11 @@ func main() {
 
 	slog.Info("config", "authorized users", cfg.TelegramAuthorizedUserIDs)
 
-	var err error
 	bot, err := tgbotapi.NewBotAPI(cfg.TelegramBotToken)
 	if err != nil {
 		slog.Error("creating telegram bot", "err", err)
 		os.Exit(1)
 	}
-
-	bot.Debug = true
 
 	slog.Info("authorized on telegram", "account", bot.Self.UserName)
 
@@ -190,6 +187,7 @@ type TelegramSender struct {
 func (s *TelegramSender) SendMessage(c *Command, text string) {
 	msg := tgbotapi.NewMessage(c.ChatID, text)
 	msg.ReplyToMessageID = c.MessageID
+
 	if _, err := s.bot.Send(msg); err != nil {
 		slog.Error("sending message to telegram", "err", err)
 	}
@@ -406,7 +404,7 @@ func (g *GptClient) GenerateMessageInChat(prompt string, chatID int64) (string, 
 	resp, err := g.client.CreateChatCompletion(
 		context.Background(),
 		openai.ChatCompletionRequest{
-			Model:    openai.GPT4,
+			Model:    openai.GPT432K,
 			Messages: g.chatMessages[chatID],
 		},
 	)
