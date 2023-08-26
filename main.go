@@ -404,7 +404,7 @@ func (g *GptClient) GenerateMessageInChat(prompt string, chatID int64) (string, 
 	resp, err := g.client.CreateChatCompletion(
 		context.Background(),
 		openai.ChatCompletionRequest{
-			Model:    openai.GPT432K,
+			Model:    openai.GPT4,
 			Messages: g.chatMessages[chatID],
 		},
 	)
