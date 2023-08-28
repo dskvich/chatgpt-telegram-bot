@@ -56,6 +56,7 @@ jobs:
             -e GPT_TOKEN=${{ secrets.GPT_TOKEN }} \
             -e TELEGRAM_AUTHORIZED_USER_IDS="${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS }}" \
             -e DIGITALOCEAN_ACCESS_TOKEN=${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} \
+            -p 8080:8080 \
             $CONTAINER_REGISTRY/$IMAGE_NAME:$GITHUB_SHA
             
             echo "Cleaning up..."
