@@ -40,7 +40,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: IMAGE_NAME,CONTAINER_REGISTRY,GITHUB_SHA
+          envs: IMAGE_NAME,CONTAINER_REGISTRY,GITHUB_SHA,TELEGRAM_AUTHORIZED_USER_IDS
           script: |
             echo "Logging into Digital Ocean Registry..."
             docker login -u ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} -p ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} registry.digitalocean.com
@@ -56,7 +56,7 @@ jobs:
             --name $IMAGE_NAME \
             -e TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
             -e GPT_TOKEN=${{ secrets.GPT_TOKEN }} \
-            -e TELEGRAM_AUTHORIZED_USER_IDS="${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS }}" \
+            -e TELEGRAM_AUTHORIZED_USER_IDS="$TELEGRAM_AUTHORIZED_USER_IDS" \
             -e DIGITALOCEAN_ACCESS_TOKEN=${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} \
             -p 127.0.0.1:8080:8080 \
             --network my-network \
