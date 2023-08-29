@@ -49,6 +49,8 @@ jobs:
             docker stop $IMAGE_NAME || echo "No existing container to stop."
             docker rm $IMAGE_NAME || echo "No existing container to remove."
             
+            docker network create my-network || echo "Network already exists."
+            
             echo "Starting new Docker container..."
             docker run -d \
             --name $IMAGE_NAME \
@@ -57,6 +59,7 @@ jobs:
             -e TELEGRAM_AUTHORIZED_USER_IDS="${{ secrets.TELEGRAM_AUTHORIZED_USER_IDS }}" \
             -e DIGITALOCEAN_ACCESS_TOKEN=${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} \
             -p 127.0.0.1:8080:8080 \
+            --network my-network \
             $CONTAINER_REGISTRY/$IMAGE_NAME:$GITHUB_SHA
             
             echo "Cleaning up..."
