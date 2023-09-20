@@ -83,7 +83,7 @@ func (s *service) handleUpdate(update tgbotapi.Update) {
 	} else if update.CallbackQuery != nil {
 		slog.Info("callback received", "data", update.CallbackQuery.Data, "user", update.CallbackQuery.Message.From, "message", update.CallbackQuery.Message)
 
-		if !s.authenticator.IsAuthorized(update.CallbackQuery.Message.From.ID) {
+		if !s.authenticator.IsAuthorized(update.CallbackQuery.Message.Chat.ID) {
 			s.messages <- &domain.TextMessage{
 				ChatID:           update.CallbackQuery.Message.Chat.ID,
 				ReplyToMessageID: update.CallbackQuery.Message.MessageID,
