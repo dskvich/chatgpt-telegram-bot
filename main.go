@@ -100,7 +100,7 @@ func setupServices() (service.Group, error) {
 	messagesCh := make(chan domain.Message)
 
 	if svc, err = telegram.NewService(bot, authenticator, dispatcher, messagesCh); err == nil {
-		svcGroup = append(svcGroup, svc)
+		//svcGroup = append(svcGroup, svc)
 	} else {
 		return nil, err
 	}

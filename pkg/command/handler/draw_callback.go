@@ -28,14 +28,14 @@ func (d *drawCallback) Handle(update tgbotapi.Update) domain.Message {
 	imgBytes, err := d.provider.GenerateImage(update.CallbackQuery.Message.Text)
 	if err != nil {
 		return &domain.TextMessage{
-			ChatID:           update.Message.Chat.ID,
-			ReplyToMessageID: update.Message.MessageID,
+			ChatID:           update.CallbackQuery.Message.Chat.ID,
+			ReplyToMessageID: update.CallbackQuery.Message.MessageID,
 			Content:          fmt.Sprintf("Failed to generate image using Dall-E: %v", err),
 		}
 	}
 	return &domain.ImageMessage{
-		ChatID:           update.Message.Chat.ID,
-		ReplyToMessageID: update.Message.MessageID,
+		ChatID:           update.CallbackQuery.Message.Chat.ID,
+		ReplyToMessageID: update.CallbackQuery.Message.MessageID,
 		Content:          imgBytes,
 	}
 }
