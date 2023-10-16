@@ -21,7 +21,18 @@ func NewChat(remover MessagesRemover) *chat {
 }
 
 func (n *chat) CanHandle(update *tgbotapi.Update) bool {
-	return update.Message != nil && strings.HasPrefix(update.Message.Text, "/new_chat")
+	if update.Message == nil {
+		return false
+	}
+
+	text := strings.ToLower(update.Message.Text)
+
+	if strings.HasPrefix(text, "/new_chat") ||
+		strings.Contains(text, "новый чат") {
+		return true
+	}
+
+	return false
 }
 
 func (n *chat) Handle(update *tgbotapi.Update) domain.Message {
@@ -29,6 +40,6 @@ func (n *chat) Handle(update *tgbotapi.Update) domain.Message {
 	return &domain.TextMessage{
 		ChatID:           update.Message.Chat.ID,
 		ReplyToMessageID: update.Message.MessageID,
-		Content:          "New chat created.",
+		Content:          "Старт нового чата. Предыдущая история беседы была очищена. Начните разговор заново.",
 	}
 }
