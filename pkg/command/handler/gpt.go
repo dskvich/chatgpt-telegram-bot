@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
@@ -20,8 +21,10 @@ func NewGpt(provider GptProvider) *gpt {
 	return &gpt{provider: provider}
 }
 
-func (_ *gpt) CanHandle(_ *tgbotapi.Update) bool {
-	return true
+func (_ *gpt) CanHandle(update *tgbotapi.Update) bool {
+	return update.Message != nil &&
+		!strings.HasPrefix(update.Message.Text, "/") &&
+		!strings.Contains(strings.ToLower(update.Message.Text), "рисуй")
 }
 
 func (g *gpt) Handle(update *tgbotapi.Update) domain.Message {
