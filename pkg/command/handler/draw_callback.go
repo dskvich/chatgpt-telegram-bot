@@ -20,8 +20,8 @@ type drawCallback struct {
 func NewDrawCallback(
 	provider DalleCallbackProvider,
 	outCh chan<- domain.Message,
-) *draw {
-	return &draw{
+) *drawCallback {
+	return &drawCallback{
 		provider: provider,
 		outCh:    outCh,
 	}
@@ -31,7 +31,7 @@ func (d *drawCallback) CanHandle(update *tgbotapi.Update) bool {
 	return update.CallbackQuery != nil && update.CallbackQuery.Data == domain.DrawCallback
 }
 
-func (d *drawCallback) Handle(update tgbotapi.Update) {
+func (d *drawCallback) Handle(update *tgbotapi.Update) {
 	imgBytes, err := d.provider.GenerateImage(update.CallbackQuery.Message.Text)
 	if err != nil {
 		d.outCh <- &domain.TextMessage{
