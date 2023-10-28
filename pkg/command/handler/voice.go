@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
@@ -22,6 +23,7 @@ type SpeechTranscriber interface {
 
 type GptResponseGenerator interface {
 	GenerateChatResponse(chatID int64, prompt string) (string, error)
+	GenerateImage(prompt string) ([]byte, error)
 }
 
 type voice struct {
@@ -87,6 +89,25 @@ func (v *voice) Handle(update *tgbotapi.Update) {
 		ChatID:           update.Message.Chat.ID,
 		ReplyToMessageID: update.Message.MessageID,
 		Content:          fmt.Sprintf("Вы сказали: %s", text),
+	}
+
+	if strings.Contains(strings.ToLower(text), "рисуй") {
+		imgBytes, err := v.generator.GenerateImage(text)
+		if err != nil {
+			v.outCh <- &domain.TextMessage{
+				ChatID:           update.Message.Chat.ID,
+				ReplyToMessageID: update.Message.MessageID,
+				Content:          fmt.Sprintf("Failed to generate image using Dall-E: %v", err),
+			}
+			return
+		}
+
+		v.outCh <- &domain.ImageMessage{
+			ChatID:           update.Message.Chat.ID,
+			ReplyToMessageID: update.Message.MessageID,
+			Content:          imgBytes,
+		}
+		return
 	}
 
 	response, err := v.generator.GenerateChatResponse(update.Message.Chat.ID, text)
