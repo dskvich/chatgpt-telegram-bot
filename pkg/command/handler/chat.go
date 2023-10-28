@@ -14,10 +14,17 @@ type MessagesRemover interface {
 
 type chat struct {
 	remover MessagesRemover
+	outCh   chan<- domain.Message
 }
 
-func NewChat(remover MessagesRemover) *chat {
-	return &chat{remover: remover}
+func NewChat(
+	remover MessagesRemover,
+	outCh chan<- domain.Message,
+) *chat {
+	return &chat{
+		remover: remover,
+		outCh:   outCh,
+	}
 }
 
 func (n *chat) CanHandle(update *tgbotapi.Update) bool {
@@ -35,9 +42,10 @@ func (n *chat) CanHandle(update *tgbotapi.Update) bool {
 	return false
 }
 
-func (n *chat) Handle(update *tgbotapi.Update) domain.Message {
-	n.remover.RemoveMessages(update.Message.Chat.ID)
-	return &domain.TextMessage{
+func (c *chat) Handle(update *tgbotapi.Update) {
+	c.remover.RemoveMessages(update.Message.Chat.ID)
+
+	c.outCh <- &domain.TextMessage{
 		ChatID:           update.Message.Chat.ID,
 		ReplyToMessageID: update.Message.MessageID,
 		Content:          "Старт нового чата. Предыдущая история беседы была очищена. Начните разговор заново.",

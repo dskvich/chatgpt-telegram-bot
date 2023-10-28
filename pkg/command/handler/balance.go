@@ -16,22 +16,30 @@ type DigitalOceanBalanceProvider interface {
 
 type balance struct {
 	provider DigitalOceanBalanceProvider
+	outCh    chan<- domain.Message
 }
 
-func NewBalance(provider DigitalOceanBalanceProvider) *balance {
-	return &balance{provider: provider}
+func NewBalance(
+	provider DigitalOceanBalanceProvider,
+	outCh chan<- domain.Message,
+) *balance {
+	return &balance{
+		provider: provider,
+		outCh:    outCh,
+	}
 }
 
 func (b *balance) CanHandle(update *tgbotapi.Update) bool {
 	return update.Message != nil && strings.HasPrefix(update.Message.Text, "/balance")
 }
 
-func (b *balance) Handle(update *tgbotapi.Update) domain.Message {
+func (b *balance) Handle(update *tgbotapi.Update) {
 	response, err := b.provider.GetBalanceMessage(context.TODO())
 	if err != nil {
 		response = fmt.Sprintf("Failed to fetch DigitalOcean balance: %v", err)
 	}
-	return &domain.TextMessage{
+
+	b.outCh <- &domain.TextMessage{
 		ChatID:           update.Message.Chat.ID,
 		ReplyToMessageID: update.Message.MessageID,
 		Content:          response,

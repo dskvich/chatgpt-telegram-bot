@@ -2,13 +2,11 @@ package command
 
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/domain"
 )
 
 type Handler interface {
 	CanHandle(update *tgbotapi.Update) bool
-	Handle(update *tgbotapi.Update) domain.Message
+	Handle(update *tgbotapi.Update)
 }
 
 type dispatcher struct {
@@ -23,12 +21,13 @@ func NewDispatcher(handlers []Handler, defaultHandler Handler) *dispatcher {
 	}
 }
 
-func (d *dispatcher) Dispatch(update tgbotapi.Update) domain.Message {
+func (d *dispatcher) Dispatch(update tgbotapi.Update) {
 	for _, handler := range d.handlers {
 		if handler.CanHandle(&update) {
-			return handler.Handle(&update)
+			handler.Handle(&update)
+			return
 		}
 	}
 
-	return d.defaultHandler.Handle(&update) // ?
+	d.defaultHandler.Handle(&update)
 }

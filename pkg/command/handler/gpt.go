@@ -15,10 +15,17 @@ type GptProvider interface {
 
 type gpt struct {
 	provider GptProvider
+	outCh    chan<- domain.Message
 }
 
-func NewGpt(provider GptProvider) *gpt {
-	return &gpt{provider: provider}
+func NewGpt(
+	provider GptProvider,
+	outCh chan<- domain.Message,
+) *gpt {
+	return &gpt{
+		provider: provider,
+		outCh:    outCh,
+	}
 }
 
 func (_ *gpt) CanHandle(update *tgbotapi.Update) bool {
@@ -27,12 +34,13 @@ func (_ *gpt) CanHandle(update *tgbotapi.Update) bool {
 		!strings.Contains(strings.ToLower(update.Message.Text), "рисуй")
 }
 
-func (g *gpt) Handle(update *tgbotapi.Update) domain.Message {
+func (g *gpt) Handle(update *tgbotapi.Update) {
 	response, err := g.provider.GenerateChatResponse(update.Message.Chat.ID, update.Message.Text)
 	if err != nil {
 		response = fmt.Sprintf("Failed to get response from ChatGPT: %v", err)
 	}
-	return &domain.TextMessage{
+
+	g.outCh <- &domain.TextMessage{
 		ChatID:           update.Message.Chat.ID,
 		ReplyToMessageID: update.Message.MessageID,
 		Content:          response,

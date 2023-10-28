@@ -15,26 +15,35 @@ type DalleProvider interface {
 
 type draw struct {
 	provider DalleProvider
+	outCh    chan<- domain.Message
 }
 
-func NewDraw(provider DalleProvider) *draw {
-	return &draw{provider: provider}
+func NewDraw(
+	provider DalleProvider,
+	outCh chan<- domain.Message,
+) *draw {
+	return &draw{
+		provider: provider,
+		outCh:    outCh,
+	}
 }
 
 func (d *draw) CanHandle(update *tgbotapi.Update) bool {
 	return update.Message != nil && strings.Contains(strings.ToLower(update.Message.Text), "рисуй")
 }
 
-func (d *draw) Handle(update *tgbotapi.Update) domain.Message {
+func (d *draw) Handle(update *tgbotapi.Update) {
 	imgBytes, err := d.provider.GenerateImage(update.Message.Text)
 	if err != nil {
-		return &domain.TextMessage{
+		d.outCh <- &domain.TextMessage{
 			ChatID:           update.Message.Chat.ID,
 			ReplyToMessageID: update.Message.MessageID,
 			Content:          fmt.Sprintf("Failed to generate image using Dall-E: %v", err),
 		}
+		return
 	}
-	return &domain.ImageMessage{
+
+	d.outCh <- &domain.ImageMessage{
 		ChatID:           update.Message.Chat.ID,
 		ReplyToMessageID: update.Message.MessageID,
 		Content:          imgBytes,

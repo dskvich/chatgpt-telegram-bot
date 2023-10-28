@@ -16,6 +16,7 @@ import (
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/chatgpt"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/command"
 	handler2 "github.com/sushkevichd/chatgpt-telegram-bot/pkg/command/handler"
+	converter2 "github.com/sushkevichd/chatgpt-telegram-bot/pkg/converter"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/digitalocean"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/domain"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/logger"
@@ -87,17 +88,21 @@ func setupServices() (service.Group, error) {
 	gptClient := chatgpt.NewClient(cfg.GptToken, chatRepository)
 	doClient := digitalocean.NewClient(cfg.DigitalOceanAccessToken)
 
-	defaultHandler := handler2.NewGpt(gptClient)
-	handlers := []command.Handler{
-		handler2.NewChat(chatRepository),
-		handler2.NewBalance(doClient),
-		handler2.NewUsage(gptClient),
-		handler2.NewDraw(gptClient),
-		handler2.NewDrawCallback(gptClient),
-	}
-	dispatcher := command.NewDispatcher(handlers, defaultHandler)
+	oggToMp3Converter := converter2.OggTomp3{}
+	speechToTextConverter := converter2.NewSpeechToText(gptClient)
 
 	messagesCh := make(chan domain.Message)
+
+	defaultHandler := handler2.NewGpt(gptClient, messagesCh)
+	handlers := []command.Handler{
+		handler2.NewChat(chatRepository, messagesCh),
+		handler2.NewVoice(bot, &oggToMp3Converter, speechToTextConverter, gptClient, messagesCh),
+		handler2.NewBalance(doClient, messagesCh),
+		handler2.NewUsage(gptClient, messagesCh),
+		handler2.NewDraw(gptClient, messagesCh),
+		handler2.NewDrawCallback(gptClient, messagesCh),
+	}
+	dispatcher := command.NewDispatcher(handlers, defaultHandler)
 
 	if svc, err = telegram.NewService(bot, authenticator, dispatcher, messagesCh); err == nil {
 		svcGroup = append(svcGroup, svc)

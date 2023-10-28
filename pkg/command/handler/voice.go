@@ -24,50 +24,77 @@ type GptResponseGenerator interface {
 	GenerateChatResponse(chatID int64, prompt string) (string, error)
 }
 
-type Voice struct {
+type voice struct {
 	downloader  FileDownloader
 	converter   AudioConverter
 	transcriber SpeechTranscriber
 	generator   GptResponseGenerator
+	outCh       chan<- domain.Message
 }
 
-func (v *Voice) CanHandle(update *tgbotapi.Update) bool {
+func NewVoice(
+	downloader FileDownloader,
+	converter AudioConverter,
+	transcriber SpeechTranscriber,
+	generator GptResponseGenerator,
+	outCh chan<- domain.Message,
+) *voice {
+	return &voice{
+		downloader:  downloader,
+		converter:   converter,
+		transcriber: transcriber,
+		generator:   generator,
+		outCh:       outCh,
+	}
+}
+
+func (v *voice) CanHandle(update *tgbotapi.Update) bool {
 	return update.Message != nil && update.Message.Voice != nil
 }
 
-func (v *Voice) Handle(update *tgbotapi.Update) domain.Message {
+func (v *voice) Handle(update *tgbotapi.Update) {
 	filePath, err := v.downloader.DownloadFile(update.Message.Voice.FileID)
 	if err != nil {
-		return &domain.TextMessage{
+		v.outCh <- &domain.TextMessage{
 			ChatID:           update.Message.Chat.ID,
 			ReplyToMessageID: update.Message.MessageID,
 			Content:          fmt.Sprintf("Failed to download audio file: %v", err),
 		}
+		return
 	}
 
 	mp3FilePath, err := v.converter.ConvertToMP3(filePath)
 	if err != nil {
-		return &domain.TextMessage{
+		v.outCh <- &domain.TextMessage{
 			ChatID:           update.Message.Chat.ID,
 			ReplyToMessageID: update.Message.MessageID,
 			Content:          fmt.Sprintf("Failed to convert audio file: %v", err),
 		}
+		return
 	}
 
 	text, err := v.transcriber.SpeechToText(mp3FilePath)
 	if err != nil {
-		return &domain.TextMessage{
+		v.outCh <- &domain.TextMessage{
 			ChatID:           update.Message.Chat.ID,
 			ReplyToMessageID: update.Message.MessageID,
 			Content:          fmt.Sprintf("Failed to transcribe audio file: %v", err),
 		}
+		return
+	}
+
+	v.outCh <- &domain.TextMessage{
+		ChatID:           update.Message.Chat.ID,
+		ReplyToMessageID: update.Message.MessageID,
+		Content:          fmt.Sprintf("Вы сказали: %s", text),
 	}
 
 	response, err := v.generator.GenerateChatResponse(update.Message.Chat.ID, text)
 	if err != nil {
 		response = fmt.Sprintf("Failed to get response from ChatGPT: %v", err)
 	}
-	return &domain.TextMessage{
+
+	v.outCh <- &domain.TextMessage{
 		ChatID:           update.Message.Chat.ID,
 		ReplyToMessageID: update.Message.MessageID,
 		Content:          response,

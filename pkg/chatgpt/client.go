@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/sashabaranov/go-openai"
@@ -177,7 +178,7 @@ func (c *client) calculateDalleCost(usageData []gptDalleApiDataType) map[string]
 	return totalCost
 }
 
-func (c *client) SpeechToText(filePath string) (string, error) {
+func (c *client) Transcribe(filePath string) (string, error) {
 	req := openai.AudioRequest{
 		Model:    openai.Whisper1,
 		FilePath: filePath,
@@ -236,6 +237,10 @@ func (c *client) GenerateSingleResponse(ctx context.Context, prompt string) (str
 }
 
 func (c *client) GenerateChatResponse(chatID int64, prompt string) (string, error) {
+	skipFlags := []string{"full answer", "полный ответ"}
+
+	prompt = addSuffixIfNeeded(prompt, " [Короткий ответ]", skipFlags)
+
 	message := openai.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleUser,
 		Content: prompt,
@@ -262,4 +267,16 @@ func (c *client) GenerateChatResponse(chatID int64, prompt string) (string, erro
 	}
 
 	return "", fmt.Errorf("no completion response")
+}
+
+func addSuffixIfNeeded(prompt, suffix string, skipFlags []string) string {
+	prompt = strings.ToLower(prompt)
+
+	for _, flag := range skipFlags {
+		if strings.Contains(prompt, flag) {
+			return prompt
+		}
+	}
+
+	return prompt + suffix
 }
