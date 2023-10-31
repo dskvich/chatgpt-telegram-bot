@@ -237,7 +237,7 @@ func (c *client) GenerateSingleResponse(ctx context.Context, prompt string) (str
 }
 
 func (c *client) GenerateChatResponse(chatID int64, prompt string) (string, error) {
-	skipFlags := []string{"full answer", "полный ответ"}
+	skipFlags := []string{"full answer", "in details", "полный ответ", "подробно"}
 
 	prompt = addSuffixIfNeeded(prompt, " [Короткий ответ]", skipFlags)
 

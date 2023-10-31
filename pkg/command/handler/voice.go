@@ -88,11 +88,13 @@ func (v *voice) Handle(update *tgbotapi.Update) {
 	v.outCh <- &domain.TextMessage{
 		ChatID:           update.Message.Chat.ID,
 		ReplyToMessageID: update.Message.MessageID,
-		Content:          fmt.Sprintf("Вы сказали: %s", text),
+		Content:          fmt.Sprintf("🎤 %s", text),
 	}
 
 	if strings.Contains(strings.ToLower(text), "рисуй") {
-		imgBytes, err := v.generator.GenerateImage(text)
+		processedText := removeWordContaining(text, "рисуй")
+
+		imgBytes, err := v.generator.GenerateImage(processedText)
 		if err != nil {
 			v.outCh <- &domain.TextMessage{
 				ChatID:           update.Message.Chat.ID,
@@ -120,4 +122,18 @@ func (v *voice) Handle(update *tgbotapi.Update) {
 		ReplyToMessageID: update.Message.MessageID,
 		Content:          response,
 	}
+}
+
+func removeWordContaining(text string, target string) string {
+	words := strings.Fields(text)
+	var filtered []string
+
+	for _, word := range words {
+		if !strings.Contains(strings.ToLower(word), strings.ToLower(target)) {
+			filtered = append(filtered, word)
+		}
+	}
+
+	res := strings.Join(filtered, " ")
+	return strings.TrimSuffix(res, ".")
 }
