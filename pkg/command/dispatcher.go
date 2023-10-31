@@ -28,6 +28,4 @@ func (d *dispatcher) Dispatch(update tgbotapi.Update) {
 			return
 		}
 	}
-
-	d.defaultHandler.Handle(&update)
 }
