@@ -101,6 +101,7 @@ func setupServices() (service.Group, error) {
 		handler2.NewUsage(gptClient, messagesCh),
 		handler2.NewDraw(gptClient, messagesCh),
 		handler2.NewDrawCallback(gptClient, messagesCh),
+		handler2.NewGpt(gptClient, messagesCh),
 	}
 	dispatcher := command.NewDispatcher(handlers, defaultHandler)
 
