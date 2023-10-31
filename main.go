@@ -95,6 +95,7 @@ func setupServices() (service.Group, error) {
 
 	defaultHandler := handler2.NewGpt(gptClient, messagesCh)
 	handlers := []command.Handler{
+		handler2.NewInfo(messagesCh),
 		handler2.NewChat(chatRepository, messagesCh),
 		handler2.NewVoice(bot, &oggToMp3Converter, speechToTextConverter, gptClient, messagesCh),
 		handler2.NewBalance(doClient, messagesCh),
