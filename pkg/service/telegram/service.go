@@ -81,13 +81,13 @@ func (s *service) handleUpdate(update tgbotapi.Update) {
 
 		s.commandDispatcher.Dispatch(update)
 	} else if update.CallbackQuery != nil {
-		slog.Info("callback received", "data", update.CallbackQuery.Data, "user", update.CallbackQuery.Message.From, "message", update.CallbackQuery.Message)
+		slog.Info("callback received", "data", update.CallbackQuery.Data, "user", update.CallbackQuery.From, "message", update.CallbackQuery.Message)
 
-		if !s.authenticator.IsAuthorized(update.CallbackQuery.Message.Chat.ID) {
+		if !s.authenticator.IsAuthorized(update.CallbackQuery.From.ID) {
 			s.messages <- &domain.TextMessage{
 				ChatID:           update.CallbackQuery.Message.Chat.ID,
 				ReplyToMessageID: update.CallbackQuery.Message.MessageID,
-				Content:          fmt.Sprintf("User ID %d not authorized to use this bot.", update.CallbackQuery.Message.From.ID),
+				Content:          fmt.Sprintf("User ID %d not authorized to use this bot.", update.CallbackQuery.From.ID),
 			}
 			return
 		}
