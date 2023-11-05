@@ -17,6 +17,7 @@ import (
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/command"
 	handler2 "github.com/sushkevichd/chatgpt-telegram-bot/pkg/command/handler"
 	converter2 "github.com/sushkevichd/chatgpt-telegram-bot/pkg/converter"
+	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/database"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/digitalocean"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/domain"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/logger"
@@ -33,6 +34,8 @@ type Config struct {
 	TelegramAuthorizedUserIDs []int64 `env:"TELEGRAM_AUTHORIZED_USER_IDS" envSeparator:" "`
 	DigitalOceanAccessToken   string  `env:"DIGITALOCEAN_ACCESS_TOKEN,required"`
 	Port                      string  `env:"PORT" envDefault:"8080"`
+	PgURL                     string  `env:"DATABASE_URL"`
+	PgHost                    string  `env:"DB_HOST" envDefault:"localhost:65432"`
 }
 
 func main() {
@@ -84,7 +87,13 @@ func setupServices() (service.Group, error) {
 	}
 	authenticator := auth.NewAuthenticator(cfg.TelegramAuthorizedUserIDs)
 
+	db, err := database.NewPostgres(cfg.PgURL, cfg.PgHost)
+	if err != nil {
+		return nil, fmt.Errorf("creating db: %v", err)
+	}
+
 	chatRepository := repository.NewChatRepository()
+	promptRepository := repository.NewPromptRepository(db)
 	gptClient := chatgpt.NewClient(cfg.GptToken, chatRepository)
 	doClient := digitalocean.NewClient(cfg.DigitalOceanAccessToken)
 
@@ -97,11 +106,11 @@ func setupServices() (service.Group, error) {
 	handlers := []command.Handler{
 		handler2.NewInfo(messagesCh),
 		handler2.NewChat(chatRepository, messagesCh),
-		handler2.NewVoice(bot, &oggToMp3Converter, speechToTextConverter, gptClient, messagesCh),
+		handler2.NewVoice(bot, &oggToMp3Converter, speechToTextConverter, gptClient, promptRepository, messagesCh),
 		handler2.NewBalance(doClient, messagesCh),
 		handler2.NewUsage(gptClient, messagesCh),
-		handler2.NewDraw(gptClient, messagesCh),
-		handler2.NewDrawCallback(gptClient, messagesCh),
+		handler2.NewDraw(gptClient, promptRepository, messagesCh),
+		handler2.NewDrawCallback(gptClient, promptRepository, messagesCh),
 		handler2.NewGpt(gptClient, messagesCh),
 	}
 	dispatcher := command.NewDispatcher(handlers, defaultHandler)

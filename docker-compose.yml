@@ -1,0 +1,16 @@
+version: "3.9"
+services:
+  db:
+    restart: always
+    image: postgres:15-alpine
+    volumes:
+      - ./test/db/postgres-init:/docker-entrypoint-initdb.d
+      - data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - 127.0.0.1:65432:5432
+
+volumes:
+  data:

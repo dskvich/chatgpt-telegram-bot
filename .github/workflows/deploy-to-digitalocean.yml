@@ -54,6 +54,7 @@ jobs:
             echo "Starting new Docker container..."
             docker run -d \
             --name $IMAGE_NAME \
+            -e DB_HOST=${{ vars.DB_HOST }} \
             -e TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
             -e GPT_TOKEN=${{ secrets.GPT_TOKEN }} \
             -e TELEGRAM_AUTHORIZED_USER_IDS="${{ vars.TELEGRAM_AUTHORIZED_USER_IDS }}" \
