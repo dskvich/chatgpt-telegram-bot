@@ -21,10 +21,12 @@ func NewInfo(
 }
 
 func (_ *info) CanHandle(update *tgbotapi.Update) bool {
-	return update.Message != nil &&
-		strings.Contains(strings.ToLower(update.Message.Text), "что ты умеешь") ||
-		strings.Contains(strings.ToLower(update.Message.Text), "привет")
+	if update.Message == nil {
+		return false
+	}
 
+	return strings.Contains(strings.ToLower(update.Message.Text), "что ты умеешь") ||
+		strings.Contains(strings.ToLower(update.Message.Text), "привет")
 }
 
 func (i *info) Handle(update *tgbotapi.Update) {

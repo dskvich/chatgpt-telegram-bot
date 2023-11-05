@@ -29,8 +29,11 @@ func NewGpt(
 }
 
 func (_ *gpt) CanHandle(update *tgbotapi.Update) bool {
-	return update.Message != nil &&
-		!strings.HasPrefix(update.Message.Text, "/") &&
+	if update.Message == nil {
+		return false
+	}
+
+	return !strings.HasPrefix(update.Message.Text, "/") &&
 		!strings.Contains(strings.ToLower(update.Message.Text), "рисуй")
 }
 
