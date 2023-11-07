@@ -62,7 +62,11 @@ func (c *visionClient) RecognizeImage(chatID int64, base64image, caption string)
 		return "", fmt.Errorf("decoding response data: %v", err)
 	}
 
-	return response.Choices[0].Message.Content, nil
+	if len(response.Choices) > 0 && response.Choices[0].Message.Content != "" {
+		return response.Choices[0].Message.Content, nil
+	}
+
+	return "", fmt.Errorf("no completion response")
 }
 
 type chatCompletionResponse struct {
