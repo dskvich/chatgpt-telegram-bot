@@ -33,7 +33,8 @@ func (_ *gpt) CanHandle(update *tgbotapi.Update) bool {
 		return false
 	}
 
-	return !strings.HasPrefix(update.Message.Text, "/") &&
+	return update.Message.Text != "" &&
+		!strings.HasPrefix(update.Message.Text, "/") &&
 		!strings.Contains(strings.ToLower(update.Message.Text), "рисуй")
 }
 

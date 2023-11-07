@@ -95,6 +95,7 @@ func setupServices() (service.Group, error) {
 	chatRepository := repository.NewChatRepository()
 	promptRepository := repository.NewPromptRepository(db)
 	gptClient := chatgpt.NewClient(cfg.GptToken, chatRepository)
+	visionGptClient := chatgpt.NewVisionClient(cfg.GptToken)
 	doClient := digitalocean.NewClient(cfg.DigitalOceanAccessToken)
 
 	oggToMp3Converter := converter2.OggTomp3{}
@@ -112,6 +113,7 @@ func setupServices() (service.Group, error) {
 		handler2.NewDraw(gptClient, promptRepository, messagesCh),
 		handler2.NewDrawCallback(gptClient, promptRepository, messagesCh),
 		handler2.NewGpt(gptClient, messagesCh),
+		handler2.NewVision(bot, visionGptClient, messagesCh),
 	}
 	dispatcher := command.NewDispatcher(handlers, defaultHandler)
 

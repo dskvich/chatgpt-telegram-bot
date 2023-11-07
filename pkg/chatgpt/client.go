@@ -74,7 +74,7 @@ func (c *client) GetUsage() (string, error) {
 		modelTotalCost[model] += cost
 	}
 
-	return c.generateUsageMessage(modelTotalCost), nil
+	return generateUsageMessage(modelTotalCost), nil
 }
 
 type gptDataType struct {
@@ -112,7 +112,7 @@ type gptUsageData struct {
 	CurrentUsageUsd float64                 `json:"current_usage_usd"`
 }
 
-func (c *client) generateUsageMessage(totalCost map[string]float64) string {
+func generateUsageMessage(totalCost map[string]float64) string {
 	var message string
 	var total float64
 
@@ -212,6 +212,7 @@ func (c *client) GenerateImage(prompt string) ([]byte, error) {
 	return imgBytes, nil
 }
 
+// GenerateSingleResponse function for HTTP API
 func (c *client) GenerateSingleResponse(ctx context.Context, prompt string) (string, error) {
 	message := openai.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleUser,

@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"log/slog"
@@ -85,4 +86,34 @@ func (b *bot) DownloadFile(fileID string) (string, error) {
 	}
 
 	return filePath, nil
+}
+
+func (b *bot) GetFile(fileID string) (string, error) {
+	file, err := b.api.GetFile(tgbotapi.FileConfig{FileID: fileID})
+	if err != nil {
+		return "", fmt.Errorf("getting file: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, file.Link(b.token), nil)
+	if err != nil {
+		return "", fmt.Errorf("creating request: %v", err)
+	}
+
+	resp, err := b.api.Client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("executing request: %v", err)
+	}
+	defer func(Body io.ReadCloser) {
+		if closeErr := Body.Close(); closeErr != nil {
+			slog.Error("closing body", logger.Err(closeErr))
+		}
+	}(resp.Body)
+
+	bytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("reading response body: %v", err)
+	}
+
+	base64Image := base64.StdEncoding.EncodeToString(bytes)
+	return base64Image, nil
 }
