@@ -1,10 +1,11 @@
 package chatgpt
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
-	"strings"
 )
 
 type visionClient struct {
@@ -22,31 +23,49 @@ func NewVisionClient(token string) *visionClient {
 func (c *visionClient) RecognizeImage(chatID int64, base64image, caption string) (string, error) {
 	url := "https://api.openai.com/v1/chat/completions"
 
-	body := fmt.Sprintf(`{
-		"model": "gpt-4-vision-preview",
-		"messages": [
-		  {
-			"role": "user",
-			"content": [
-			  {
-				"type": "text",
-				"text": "%s"
-			  },
-			  {
-				"type": "image_url",
-				"image_url": {
-				  "url": "data:image/jpeg;base64,%s"
-				}
-			  }
-			]
-		  }
-		],
-		"max_tokens": 300
-	  }`, caption, base64image)
-
-	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
+	req, err := c.prepareRequest(base64image, caption)
 	if err != nil {
-		return "", fmt.Errorf("creating request: %v", err)
+		return "", fmt.Errorf("preparing request: %v", err)
+	}
+
+	resp, err := c.sendRequest(url, req)
+	if err != nil {
+		return "", fmt.Errorf("sending request to %s: %v", url, err)
+	}
+	defer resp.Body.Close()
+
+	return c.processResponse(resp)
+}
+
+func (c *visionClient) prepareRequest(base64image, text string) ([]byte, error) {
+	url := "data:image/jpeg;base64," + base64image
+
+	chatRequest := chatCompletionsRequest{
+		Model: "gpt-4-vision-preview",
+		Messages: []chatCompletionMessage{
+			{
+				Role: "user",
+				Content: []messageContent{
+					{Type: "text", Text: text},
+					{Type: "image_url", ImageUrl: &imageUrl{Url: url}},
+				},
+			},
+		},
+		MaxTokens: 300,
+	}
+
+	body, err := json.Marshal(chatRequest)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling chat request: %v", err)
+	}
+
+	return body, nil
+}
+
+func (c *visionClient) sendRequest(url string, body []byte) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("creating HTTP request: %v", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.token)
@@ -54,10 +73,19 @@ func (c *visionClient) RecognizeImage(chatID int64, base64image, caption string)
 
 	resp, err := c.hc.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("fetching usage data: %v", err)
+		return nil, fmt.Errorf("executing HTTP request: %v", err)
 	}
 
-	var response chatCompletionResponse
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status code: %d, response: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	return resp, nil
+}
+
+func (c *visionClient) processResponse(resp *http.Response) (string, error) {
+	var response chatCompletionsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return "", fmt.Errorf("decoding response data: %v", err)
 	}
@@ -66,10 +94,31 @@ func (c *visionClient) RecognizeImage(chatID int64, base64image, caption string)
 		return response.Choices[0].Message.Content, nil
 	}
 
-	return "", fmt.Errorf("no completion response")
+	return "", fmt.Errorf("no completion response from API")
 }
 
-type chatCompletionResponse struct {
+type chatCompletionsRequest struct {
+	Model     string                  `json:"model"`
+	Messages  []chatCompletionMessage `json:"messages"`
+	MaxTokens int                     `json:"max_tokens"`
+}
+
+type chatCompletionMessage struct {
+	Role    string           `json:"role"`
+	Content []messageContent `json:"content"`
+}
+
+type messageContent struct {
+	Type     string    `json:"type"`
+	Text     string    `json:"text,omitempty"`
+	ImageUrl *imageUrl `json:"image_url,omitempty"`
+}
+
+type imageUrl struct {
+	Url string `json:"url"`
+}
+
+type chatCompletionsResponse struct {
 	Id      string `json:"id"`
 	Object  string `json:"object"`
 	Created int    `json:"created"`
