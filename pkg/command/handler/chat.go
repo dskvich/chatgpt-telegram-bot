@@ -9,7 +9,7 @@ import (
 )
 
 type MessagesRemover interface {
-	RemoveMessages(chatID int64)
+	RemoveSession(chatID int64)
 }
 
 type chat struct {
@@ -43,7 +43,7 @@ func (n *chat) CanHandle(update *tgbotapi.Update) bool {
 }
 
 func (c *chat) Handle(update *tgbotapi.Update) {
-	c.remover.RemoveMessages(update.Message.Chat.ID)
+	c.remover.RemoveSession(update.Message.Chat.ID)
 
 	c.outCh <- &domain.TextMessage{
 		ChatID:           update.Message.Chat.ID,

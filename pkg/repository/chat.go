@@ -3,46 +3,38 @@ package repository
 import (
 	"sync"
 
-	"github.com/sashabaranov/go-openai"
+	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/domain"
 )
 
 type chatRepository struct {
 	mu       sync.RWMutex
-	messages map[int64][]openai.ChatCompletionMessage
+	sessions map[int64]domain.ChatSession
 }
 
 func NewChatRepository() *chatRepository {
 	return &chatRepository{
-		messages: make(map[int64][]openai.ChatCompletionMessage),
+		sessions: make(map[int64]domain.ChatSession),
 	}
 }
 
-func (c *chatRepository) AddMessage(chatID int64, msg openai.ChatCompletionMessage) {
+func (c *chatRepository) SaveSession(chatID int64, session domain.ChatSession) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.messages[chatID] = append(c.messages[chatID], msg)
+	c.sessions[chatID] = session
 }
 
-func (c *chatRepository) GetMessages(chatID int64) []openai.ChatCompletionMessage {
+func (c *chatRepository) GetSession(chatID int64) (domain.ChatSession, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if len(c.messages[chatID]) == 0 {
-		return nil
-	}
-
-	res := make([]openai.ChatCompletionMessage, 0, len(c.messages[chatID]))
-	for _, msg := range c.messages[chatID] {
-		res = append(res, msg)
-	}
-
-	return res
+	session, ok := c.sessions[chatID]
+	return session, ok
 }
 
-func (c *chatRepository) RemoveMessages(chatID int64) {
+func (c *chatRepository) RemoveSession(chatID int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.messages[chatID] = nil
+	delete(c.sessions, chatID)
 }

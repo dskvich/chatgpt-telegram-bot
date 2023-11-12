@@ -94,28 +94,32 @@ func setupServices() (service.Group, error) {
 
 	chatRepository := repository.NewChatRepository()
 	promptRepository := repository.NewPromptRepository(db)
-	gptClient := chatgpt.NewClient(cfg.GptToken, chatRepository)
-	visionGptClient := chatgpt.NewVisionClient(cfg.GptToken)
+
+	textGptClient := chatgpt.NewTextClient(cfg.GptToken, chatRepository)
+	usageGptClient := chatgpt.NewUsageClient(cfg.GptToken)
+	imageGptClient := chatgpt.NewImageClient(cfg.GptToken)
+	audioGptClient := chatgpt.NewAudioClient(cfg.GptToken)
+	visionGptClient := chatgpt.NewVisionClient(cfg.GptToken, chatRepository)
+
 	doClient := digitalocean.NewClient(cfg.DigitalOceanAccessToken)
 
 	oggToMp3Converter := converter2.OggTomp3{}
-	speechToTextConverter := converter2.NewSpeechToText(gptClient)
+	speechToTextConverter := converter2.NewSpeechToText(audioGptClient)
 
 	messagesCh := make(chan domain.Message)
 
-	defaultHandler := handler2.NewGpt(gptClient, messagesCh)
 	handlers := []command.Handler{
 		handler2.NewInfo(messagesCh),
 		handler2.NewChat(chatRepository, messagesCh),
-		handler2.NewVoice(bot, &oggToMp3Converter, speechToTextConverter, gptClient, promptRepository, messagesCh),
+		handler2.NewVoice(bot, &oggToMp3Converter, speechToTextConverter, textGptClient, imageGptClient, promptRepository, messagesCh),
 		handler2.NewBalance(doClient, messagesCh),
-		handler2.NewUsage(gptClient, messagesCh),
-		handler2.NewDraw(gptClient, promptRepository, messagesCh),
-		handler2.NewDrawCallback(gptClient, promptRepository, messagesCh),
-		handler2.NewGpt(gptClient, messagesCh),
+		handler2.NewUsage(usageGptClient, messagesCh),
+		handler2.NewDraw(imageGptClient, promptRepository, messagesCh),
+		handler2.NewDrawCallback(imageGptClient, promptRepository, messagesCh),
+		handler2.NewGpt(textGptClient, messagesCh),
 		handler2.NewVision(bot, visionGptClient, messagesCh),
 	}
-	dispatcher := command.NewDispatcher(handlers, defaultHandler)
+	dispatcher := command.NewDispatcher(handlers)
 
 	if svc, err = telegram.NewService(bot, authenticator, dispatcher, messagesCh); err == nil {
 		svcGroup = append(svcGroup, svc)
@@ -124,7 +128,7 @@ func setupServices() (service.Group, error) {
 	}
 
 	router := chi.NewRouter()
-	router.Get("/api/gpt/generate", handler.NewGpt(gptClient).GenerateResponse)
+	router.Get("/api/gpt/generate", handler.NewGpt(textGptClient).GenerateResponse)
 
 	if svc, err = httpserver.NewService(fmt.Sprintf(":%s", cfg.Port), router); err == nil {
 		svcGroup = append(svcGroup, svc)

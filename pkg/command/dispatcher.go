@@ -10,14 +10,12 @@ type Handler interface {
 }
 
 type dispatcher struct {
-	handlers       []Handler
-	defaultHandler Handler
+	handlers []Handler
 }
 
-func NewDispatcher(handlers []Handler, defaultHandler Handler) *dispatcher {
+func NewDispatcher(handlers []Handler) *dispatcher {
 	return &dispatcher{
-		handlers:       handlers,
-		defaultHandler: defaultHandler,
+		handlers: handlers,
 	}
 }
 

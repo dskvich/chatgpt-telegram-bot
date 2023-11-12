@@ -22,8 +22,11 @@ type SpeechTranscriber interface {
 	SpeechToText(filePath string) (text string, err error)
 }
 
-type GptResponseGenerator interface {
+type GptTextResponseGenerator interface {
 	GenerateChatResponse(chatID int64, prompt string) (string, error)
+}
+
+type GptImageResponseGenerator interface {
 	GenerateImage(prompt string) ([]byte, error)
 }
 
@@ -32,29 +35,32 @@ type VoicePromptSaver interface {
 }
 
 type voice struct {
-	downloader  FileDownloader
-	converter   AudioConverter
-	transcriber SpeechTranscriber
-	generator   GptResponseGenerator
-	saver       VoicePromptSaver
-	outCh       chan<- domain.Message
+	downloader     FileDownloader
+	converter      AudioConverter
+	transcriber    SpeechTranscriber
+	textGenerator  GptTextResponseGenerator
+	imageGenerator GptImageResponseGenerator
+	saver          VoicePromptSaver
+	outCh          chan<- domain.Message
 }
 
 func NewVoice(
 	downloader FileDownloader,
 	converter AudioConverter,
 	transcriber SpeechTranscriber,
-	generator GptResponseGenerator,
+	textGenerator GptTextResponseGenerator,
+	imageGenerator GptImageResponseGenerator,
 	saver VoicePromptSaver,
 	outCh chan<- domain.Message,
 ) *voice {
 	return &voice{
-		downloader:  downloader,
-		converter:   converter,
-		transcriber: transcriber,
-		generator:   generator,
-		saver:       saver,
-		outCh:       outCh,
+		downloader:     downloader,
+		converter:      converter,
+		transcriber:    transcriber,
+		textGenerator:  textGenerator,
+		imageGenerator: imageGenerator,
+		saver:          saver,
+		outCh:          outCh,
 	}
 }
 
@@ -118,7 +124,7 @@ func (v *voice) Handle(update *tgbotapi.Update) {
 	if strings.Contains(strings.ToLower(prompt), "рисуй") {
 		processedPrompt := removeWordContaining(prompt, "рисуй")
 
-		imgBytes, err := v.generator.GenerateImage(processedPrompt)
+		imgBytes, err := v.imageGenerator.GenerateImage(processedPrompt)
 		if err != nil {
 			v.outCh <- &domain.TextMessage{
 				ChatID:           chatID,
@@ -136,7 +142,7 @@ func (v *voice) Handle(update *tgbotapi.Update) {
 		return
 	}
 
-	response, err := v.generator.GenerateChatResponse(update.Message.Chat.ID, prompt)
+	response, err := v.textGenerator.GenerateChatResponse(update.Message.Chat.ID, prompt)
 	if err != nil {
 		response = fmt.Sprintf("Failed to get response from ChatGPT: %v", err)
 	}
