@@ -10,6 +10,8 @@ import (
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/domain"
 )
 
+var drawSubstrings = []string{"рисуй", "draw"}
+
 type DalleProvider interface {
 	GenerateImage(prompt string) ([]byte, error)
 }
@@ -37,13 +39,19 @@ func NewDraw(
 }
 
 func (d *draw) CanHandle(update *tgbotapi.Update) bool {
-	return update.Message != nil && strings.Contains(strings.ToLower(update.Message.Text), "рисуй")
+	lowerText := strings.ToLower(update.Message.Text)
+	for _, substring := range drawSubstrings {
+		if strings.Contains(lowerText, substring) {
+			return update.Message != nil
+		}
+	}
+	return false
 }
 
 func (d *draw) Handle(update *tgbotapi.Update) {
 	chatID := update.Message.Chat.ID
 	messageID := update.Message.MessageID
-	prompt := update.Message.Text
+	prompt := d.extractAfterSubstrings(update.Message.Text, drawSubstrings)
 
 	if err := d.saver.Save(context.Background(), &domain.Prompt{
 		ChatID:    chatID,
@@ -73,4 +81,14 @@ func (d *draw) Handle(update *tgbotapi.Update) {
 		ReplyToMessageID: messageID,
 		Content:          imgBytes,
 	}
+}
+
+func (d *draw) extractAfterSubstrings(s string, substrings []string) string {
+	for _, substring := range substrings {
+		index := strings.Index(strings.ToLower(s), strings.ToLower(substring))
+		if index != -1 {
+			return strings.TrimSpace(s[index+len(substring):])
+		}
+	}
+	return s
 }
