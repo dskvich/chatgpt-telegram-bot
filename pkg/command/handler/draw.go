@@ -39,6 +39,10 @@ func NewDraw(
 }
 
 func (d *draw) CanHandle(update *tgbotapi.Update) bool {
+	if update.Message == nil {
+		return false
+	}
+
 	lowerText := strings.ToLower(update.Message.Text)
 	for _, substring := range drawSubstrings {
 		if strings.Contains(lowerText, substring) {
