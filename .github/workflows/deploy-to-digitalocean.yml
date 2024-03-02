@@ -64,7 +64,7 @@ jobs:
               --env GPT_TOKEN=${{ secrets.GPT_TOKEN }} \
               --env TELEGRAM_AUTHORIZED_USER_IDS="${{ vars.TELEGRAM_AUTHORIZED_USER_IDS }}" \
               --env DIGITALOCEAN_ACCESS_TOKEN=${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} \
-              --port 127.0.0.1:8080:8080 \
+              -p 127.0.0.1:8080:8080 \
               --network my-network \
               $FILL_IMAGE_NAME
             
