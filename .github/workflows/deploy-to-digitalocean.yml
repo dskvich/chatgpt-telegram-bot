@@ -2,33 +2,36 @@ name: Deploy to DigitalOcean Droplet
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
 
 env:
-  CONTAINER_REGISTRY: registry.digitalocean.com/dmsuhub
-  IMAGE_NAME: chatgpt-telegram-bot
+  CONTAINER_REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.event.repository.name }}
+  IMAGE_TAG: ${{ github.sha }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Build container image
-        run: docker build -t $CONTAINER_REGISTRY/$IMAGE_NAME:$GITHUB_SHA .
-
-      - name: Install doctl
-        uses: digitalocean/action-doctl@v2
+      - name: Log in to the Container Registry
+        uses: docker/login-action@v3
         with:
-          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          registry: ${{ env.CONTAINER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Log in to DigitalOcean Container Registry
-        run: doctl registry login --expiry-seconds 600
-
-      - name: Push image to DigitalOcean Container Registry
-        run: docker push $CONTAINER_REGISTRY/$IMAGE_NAME:$GITHUB_SHA
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.CONTAINER_REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
 
   deploy:
     runs-on: ubuntu-latest
@@ -40,46 +43,49 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: IMAGE_NAME,CONTAINER_REGISTRY,GITHUB_SHA
           script: |
-            echo "Logging into Digital Ocean Registry..."
-            docker login -u ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} -p ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} registry.digitalocean.com
-            docker pull $CONTAINER_REGISTRY/$IMAGE_NAME:$GITHUB_SHA || { echo "Failed to pull Docker image."; exit 1; }
-
-            docker stop $IMAGE_NAME || echo "No existing container to stop."
-            docker rm $IMAGE_NAME || echo "No existing container to remove."
+            echo "Logging into the Container Registry..."
+            docker login -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} ${{ env.CONTAINER_REGISTRY }}
             
+            FILL_IMAGE_NAME="${{ env.CONTAINER_REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+            
+            echo "Pulling image: $FILL_IMAGE_NAME"
+            docker pull $FILL_IMAGE_NAME || { echo "Failed to pull Docker image."; exit 1; }
+            
+            docker stop ${{ env.IMAGE_NAME }} || echo "No existing container to stop."
+            docker rm ${{ env.IMAGE_NAME }} || echo "No existing container to remove."
             docker network create my-network || echo "Network already exists."
+
+            echo "Starting a new container..."
+            docker run --detach \
+              --name ${{ env.IMAGE_NAME }} \
+              --env DATABASE_URL=${{ vars.DATABASE_URL }} \
+              --env TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
+              --env GPT_TOKEN=${{ secrets.GPT_TOKEN }} \
+              --env TELEGRAM_AUTHORIZED_USER_IDS="${{ vars.TELEGRAM_AUTHORIZED_USER_IDS }}" \
+              --env DIGITALOCEAN_ACCESS_TOKEN=${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} \
+              --port 127.0.0.1:8080:8080 \
+              --network my-network \
+              $FILL_IMAGE_NAME
             
-            echo "Starting new Docker container..."
-            docker run -d \
-            --name $IMAGE_NAME \
-            -e DATABASE_URL=${{ vars.DATABASE_URL }} \
-            -e TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
-            -e GPT_TOKEN=${{ secrets.GPT_TOKEN }} \
-            -e TELEGRAM_AUTHORIZED_USER_IDS="${{ vars.TELEGRAM_AUTHORIZED_USER_IDS }}" \
-            -e DIGITALOCEAN_ACCESS_TOKEN=${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} \
-            -p 127.0.0.1:8080:8080 \
-            --network my-network \
-            $CONTAINER_REGISTRY/$IMAGE_NAME:$GITHUB_SHA
-            
-            echo "Cleaning up..."
-            docker system prune -a -f
-            
+            echo "Waiting for the container to start"
             RETRY=5
             while [ $RETRY -gt 0 ]; do
-              if docker ps | grep -q $IMAGE_NAME; then
-                echo "Container $IMAGE_NAME started successfully."
+              if docker ps | grep -q ${{ env.IMAGE_NAME }}; then
+                echo "Container ${{ env.IMAGE_NAME }} started successfully."
                 break
               else
                 ((RETRY--))
-                echo "Waiting for the container to start. Retries left: $RETRY"
+                echo "Retries left: $RETRY"
                 sleep 5
               fi
             done
-            
+
             if [ $RETRY -eq 0 ]
             then
-              echo "Container $IMAGE_NAME failed to start."
+              echo "Container ${{ env.IMAGE_NAME }} failed to start."
               exit 1
             fi
+            
+            echo "Cleaning up unused resources"
+            docker system prune --all --force
