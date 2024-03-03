@@ -40,8 +40,12 @@ func (c *textClient) GenerateChatResponse(chatID int64, prompt string) (string, 
 	session, ok := c.repo.GetSession(chatID)
 	if !ok {
 		session = domain.ChatSession{
-			ModelName: "gpt-4-1106-preview",
-			Messages:  []domain.ChatMessage{},
+			ModelName: "gpt-4-0125-preview",
+			Messages: []domain.ChatMessage{
+				{Role: "system", Content: "Ты персональный ассистент для пацанов. " +
+					"Отвечай в пацанском стиле, используй сленг и неформальные выражения, как будто мы с тобой старые друзья. Можешь стебаться и прикалываться." +
+					"Называй меня корешем, чуваком, друганом, братаном, щёголем и все в таком стиле."},
+			},
 		}
 	}
 

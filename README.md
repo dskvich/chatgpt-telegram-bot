@@ -6,6 +6,9 @@ The generated replies are sent back to the users via the bot.
 ### Development
 After clone set the `TELEGRAM_BOT_TOKEN` and `GPT_TOKEN` environment variables.
 
+To start the DB:
+`docker-compose up -d db`
+
 To start the server:
 ```
 go run main.go
