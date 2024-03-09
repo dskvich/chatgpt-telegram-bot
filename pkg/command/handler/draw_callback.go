@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
@@ -36,7 +37,7 @@ func NewDrawCallback(
 }
 
 func (d *drawCallback) CanHandle(update *tgbotapi.Update) bool {
-	return update.CallbackQuery != nil && update.CallbackQuery.Data == domain.DrawCallback
+	return update.CallbackQuery != nil && strings.HasPrefix(update.CallbackQuery.Data, domain.DrawCallback)
 }
 
 func (d *drawCallback) Handle(update *tgbotapi.Update) {

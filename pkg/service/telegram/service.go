@@ -98,6 +98,6 @@ func (s *service) handleUpdate(update tgbotapi.Update) {
 
 func (s *service) handleMessage(message domain.Message) {
 	if err := s.bot.Send(message); err != nil {
-		slog.Error("sending message", logger.Err(err))
+		slog.Error("sending message", "message", message, logger.Err(err))
 	}
 }

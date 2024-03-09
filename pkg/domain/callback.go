@@ -2,4 +2,7 @@ package domain
 
 type Callback string
 
-const DrawCallback = "draw"
+const (
+	DrawCallback     = "draw"
+	SettingsCallback = "edit_settings"
+)

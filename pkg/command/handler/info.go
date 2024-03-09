@@ -26,8 +26,7 @@ func (_ *info) CanHandle(update *tgbotapi.Update) bool {
 	}
 
 	return strings.HasPrefix(update.Message.Text, "/start") ||
-		strings.Contains(strings.ToLower(update.Message.Text), "что ты умеешь") ||
-		strings.Contains(strings.ToLower(update.Message.Text), "привет")
+		strings.Contains(strings.ToLower(update.Message.Text), "что ты умеешь")
 }
 
 func (i *info) Handle(update *tgbotapi.Update) {

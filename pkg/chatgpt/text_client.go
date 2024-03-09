@@ -16,17 +16,27 @@ type TextChatRepository interface {
 	GetSession(chatID int64) (domain.ChatSession, bool)
 }
 
-type textClient struct {
-	token string
-	hc    *http.Client
-	repo  TextChatRepository
+type SettingsRepository interface {
+	GetSetting(ctx context.Context, chatID int64, key string) (string, error)
 }
 
-func NewTextClient(token string, repo TextChatRepository) *textClient {
+type textClient struct {
+	token        string
+	hc           *http.Client
+	chatRepo     TextChatRepository
+	settingsRepo SettingsRepository
+}
+
+func NewTextClient(
+	token string,
+	chatRepo TextChatRepository,
+	settingsRepo SettingsRepository,
+) *textClient {
 	return &textClient{
-		token: token,
-		hc:    &http.Client{},
-		repo:  repo,
+		token:        token,
+		hc:           &http.Client{},
+		chatRepo:     chatRepo,
+		settingsRepo: settingsRepo,
 	}
 }
 
@@ -37,14 +47,17 @@ func (c *textClient) GenerateSingleResponse(ctx context.Context, prompt string) 
 
 func (c *textClient) GenerateChatResponse(chatID int64, prompt string) (string, error) {
 	// Get the session for the chat or create a new one.
-	session, ok := c.repo.GetSession(chatID)
+	session, ok := c.chatRepo.GetSession(chatID)
 	if !ok {
+		systemPrompt, err := c.settingsRepo.GetSetting(context.TODO(), chatID, domain.SystemPromptKey)
+		if err != nil {
+			return "", fmt.Errorf("fetching system prompt: %v", err)
+		}
+
 		session = domain.ChatSession{
 			ModelName: "gpt-4-0125-preview",
 			Messages: []domain.ChatMessage{
-				{Role: "system", Content: "Ты персональный ассистент для пацанов. " +
-					"Отвечай в пацанском стиле, используй сленг и неформальные выражения, как будто мы с тобой старые друзья. Можешь стебаться и прикалываться." +
-					"Называй меня корешем, чуваком, друганом, братаном, щёголем и все в таком стиле."},
+				{Role: "system", Content: systemPrompt},
 			},
 		}
 	}
@@ -74,7 +87,7 @@ func (c *textClient) GenerateChatResponse(chatID int64, prompt string) (string, 
 	if len(chatResponse.Choices) > 0 && fmt.Sprint(chatResponse.Choices[0].Message.Content) != "" {
 		// Update the session with new messages and save it.
 		session.Messages = append(session.Messages, chatMessage, chatResponse.Choices[0].Message)
-		c.repo.SaveSession(chatID, session)
+		c.chatRepo.SaveSession(chatID, session)
 
 		return fmt.Sprint(chatResponse.Choices[0].Message.Content), nil
 	}

@@ -94,8 +94,9 @@ func setupServices() (service.Group, error) {
 
 	chatRepository := repository.NewChatRepository()
 	promptRepository := repository.NewPromptRepository(db)
+	settingsRepository := repository.NewSettingsRepository(db)
 
-	textGptClient := chatgpt.NewTextClient(cfg.GptToken, chatRepository)
+	textGptClient := chatgpt.NewTextClient(cfg.GptToken, chatRepository, settingsRepository)
 	usageGptClient := chatgpt.NewUsageClient(cfg.GptToken)
 	imageGptClient := chatgpt.NewImageClient(cfg.GptToken)
 	audioGptClient := chatgpt.NewAudioClient(cfg.GptToken)
@@ -109,15 +110,25 @@ func setupServices() (service.Group, error) {
 	messagesCh := make(chan domain.Message)
 
 	handlers := []command.Handler{
+		// commands
 		handler2.NewInfo(messagesCh),
 		handler2.NewChat(chatRepository, messagesCh),
-		handler2.NewVoice(bot, &oggToMp3Converter, speechToTextConverter, textGptClient, imageGptClient, promptRepository, messagesCh),
 		handler2.NewBalance(doClient, messagesCh),
 		handler2.NewUsage(usageGptClient, messagesCh),
+		handler2.NewSettings(settingsRepository, messagesCh),
+
+		// awaitings
+		handler2.NewSettingsAwaiting(chatRepository, settingsRepository, messagesCh),
+
+		// features
+		handler2.NewGpt(textGptClient, chatRepository, messagesCh),
+		handler2.NewVoice(bot, &oggToMp3Converter, speechToTextConverter, textGptClient, imageGptClient, promptRepository, messagesCh),
 		handler2.NewDraw(imageGptClient, promptRepository, messagesCh),
-		handler2.NewDrawCallback(imageGptClient, promptRepository, messagesCh),
-		handler2.NewGpt(textGptClient, messagesCh),
 		handler2.NewVision(bot, visionGptClient, messagesCh),
+
+		// callbacks
+		handler2.NewDrawCallback(imageGptClient, promptRepository, messagesCh),
+		handler2.NewSettingsCallback(chatRepository, messagesCh),
 	}
 	dispatcher := command.NewDispatcher(handlers)
 

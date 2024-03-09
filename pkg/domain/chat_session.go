@@ -1,6 +1,7 @@
 package domain
 
 type ChatSession struct {
-	ModelName string
-	Messages  []ChatMessage
+	ModelName        string
+	Messages         []ChatMessage
+	AwaitingSettings bool
 }
