@@ -49,7 +49,7 @@ func (s *settingsAwaiting) CanHandle(update *tgbotapi.Update) bool {
 func (s *settingsAwaiting) Handle(update *tgbotapi.Update) {
 	chatID := update.Message.Chat.ID
 
-	response := "Настройка сохранена"
+	response := "Новые системные настройки сохранены"
 	if err := s.settingsRepo.SaveSetting(context.TODO(), chatID, domain.SystemPromptKey, update.Message.Text); err != nil {
 		response = fmt.Sprintf("Failed to fetch setting: %v", err)
 	}

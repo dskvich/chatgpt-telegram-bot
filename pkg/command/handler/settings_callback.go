@@ -42,6 +42,6 @@ func (s *settingsCallback) Handle(update *tgbotapi.Update) {
 
 	s.outCh <- &domain.TextMessage{
 		ChatID:  chatID,
-		Content: "Введите новое значение:",
+		Content: "Введите новые настройки:",
 	}
 }
