@@ -1,6 +1,6 @@
-## Chat GPT proxy Telegram bot
-This repository contains code for a Telegram bot that acts as a proxy between users and the Chat GPT gpt-3.5-turbo model.
-Users can send messages to the bot, which then forwards the requests to the Chat GPT model for processing.
+## ChatGPT proxy Telegram bot
+This repository contains code for a Telegram bot that acts as a proxy between users and the ChatGPT gpt-3.5-turbo model.
+Users can send messages to the bot, which then forwards the requests to the ChatGPT model for processing.
 The generated replies are sent back to the users via the bot.
 
 ### Development

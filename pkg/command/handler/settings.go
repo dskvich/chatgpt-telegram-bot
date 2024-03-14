@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -30,7 +31,13 @@ func NewSettings(
 }
 
 func (s *settings) CanHandle(update *tgbotapi.Update) bool {
-	return update.Message != nil && strings.HasPrefix(update.Message.Text, "/settings")
+	if update.Message == nil {
+		return false
+	}
+
+	text := strings.ToLower(update.Message.Text)
+	matched, _ := regexp.MatchString(`^(?:/settings|покажи(?: мне)? (?:свои |системные )?настройки|настройки)$`, text)
+	return matched
 }
 
 func (s *settings) Handle(update *tgbotapi.Update) {
