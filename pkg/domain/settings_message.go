@@ -19,7 +19,7 @@ func (t *SettingsMessage) ToChatMessage() tgbotapi.Chattable {
 	}
 
 	msg := tgbotapi.NewMessage(t.ChatID, content)
-	msg.ParseMode = string(Markdown)
+	msg.ParseMode = tgbotapi.ModeMarkdown
 	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("Изменить", SettingsCallback),

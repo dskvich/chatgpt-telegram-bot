@@ -54,7 +54,6 @@ jobs:
             
             docker stop ${{ env.IMAGE_NAME }} || echo "No existing container to stop."
             docker rm ${{ env.IMAGE_NAME }} || echo "No existing container to remove."
-            docker network create my-network || echo "Network already exists."
 
             echo "Starting a new container..."
             docker run --detach \
@@ -64,8 +63,6 @@ jobs:
               --env GPT_TOKEN=${{ secrets.GPT_TOKEN }} \
               --env TELEGRAM_AUTHORIZED_USER_IDS="${{ vars.TELEGRAM_AUTHORIZED_USER_IDS }}" \
               --env DIGITALOCEAN_ACCESS_TOKEN=${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} \
-              -p 127.0.0.1:8080:8080 \
-              --network my-network \
               $FILL_IMAGE_NAME
             
             echo "Waiting for the container to start"

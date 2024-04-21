@@ -9,9 +9,7 @@ import (
 	"syscall"
 
 	"github.com/caarlos0/env/v9"
-	"github.com/go-chi/chi/v5"
 
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/api/handler"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/auth"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/chatgpt"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/command"
@@ -23,7 +21,6 @@ import (
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/logger"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/repository"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/service"
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/service/httpserver"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/service/telegram"
 	telegrambot "github.com/sushkevichd/chatgpt-telegram-bot/pkg/telegram"
 )
@@ -33,7 +30,6 @@ type Config struct {
 	TelegramBotToken          string  `env:"TELEGRAM_BOT_TOKEN,required"`
 	TelegramAuthorizedUserIDs []int64 `env:"TELEGRAM_AUTHORIZED_USER_IDS" envSeparator:" "`
 	DigitalOceanAccessToken   string  `env:"DIGITALOCEAN_ACCESS_TOKEN,required"`
-	Port                      string  `env:"PORT" envDefault:"8080"`
 	PgURL                     string  `env:"DATABASE_URL"`
 	PgHost                    string  `env:"DB_HOST" envDefault:"localhost:65432"`
 }
@@ -133,15 +129,6 @@ func setupServices() (service.Group, error) {
 	dispatcher := command.NewDispatcher(handlers)
 
 	if svc, err = telegram.NewService(bot, authenticator, dispatcher, messagesCh); err == nil {
-		svcGroup = append(svcGroup, svc)
-	} else {
-		return nil, err
-	}
-
-	router := chi.NewRouter()
-	router.Get("/api/gpt/generate", handler.NewGpt(textGptClient).GenerateResponse)
-
-	if svc, err = httpserver.NewService(fmt.Sprintf(":%s", cfg.Port), router); err == nil {
 		svcGroup = append(svcGroup, svc)
 	} else {
 		return nil, err

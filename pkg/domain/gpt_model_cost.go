@@ -6,6 +6,7 @@ type GptModelCost struct {
 	Image     float64
 }
 
+// TODO: check costs
 func DefaultGptModelCosts() map[string]GptModelCost {
 	return map[string]GptModelCost{
 		"gpt-3.5-turbo-0301":        {Context: 0.0015, Generated: 0.002},
