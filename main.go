@@ -26,7 +26,7 @@ import (
 )
 
 type Config struct {
-	GptToken                  string  `env:"GPT_TOKEN,required"`
+	OpenAIToken               string  `env:"OPEN_AI_TOKEN,required"`
 	TelegramBotToken          string  `env:"TELEGRAM_BOT_TOKEN,required"`
 	TelegramAuthorizedUserIDs []int64 `env:"TELEGRAM_AUTHORIZED_USER_IDS" envSeparator:" "`
 	DigitalOceanAccessToken   string  `env:"DIGITALOCEAN_ACCESS_TOKEN,required"`
@@ -92,11 +92,11 @@ func setupServices() (service.Group, error) {
 	promptRepository := repository.NewPromptRepository(db)
 	settingsRepository := repository.NewSettingsRepository(db)
 
-	textGptClient := chatgpt.NewTextClient(cfg.GptToken, chatRepository, settingsRepository)
-	usageGptClient := chatgpt.NewUsageClient(cfg.GptToken)
-	imageGptClient := chatgpt.NewImageClient(cfg.GptToken)
-	audioGptClient := chatgpt.NewAudioClient(cfg.GptToken)
-	visionGptClient := chatgpt.NewVisionClient(cfg.GptToken, chatRepository)
+	textGptClient := chatgpt.NewTextClient(cfg.OpenAIToken, chatRepository, settingsRepository)
+	usageGptClient := chatgpt.NewUsageClient(cfg.OpenAIToken)
+	imageGptClient := chatgpt.NewImageClient(cfg.OpenAIToken)
+	audioGptClient := chatgpt.NewAudioClient(cfg.OpenAIToken)
+	visionGptClient := chatgpt.NewVisionClient(cfg.OpenAIToken, chatRepository)
 
 	doClient := digitalocean.NewClient(cfg.DigitalOceanAccessToken)
 
