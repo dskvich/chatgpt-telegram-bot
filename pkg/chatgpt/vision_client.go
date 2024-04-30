@@ -38,7 +38,7 @@ func (c *visionClient) RecognizeImage(chatID int64, base64image, caption string)
 	// Start a new session when a new image is sent
 	c.repo.RemoveSession(chatID)
 	session := domain.ChatSession{
-		ModelName: "gpt-4-vision-preview",
+		ModelName: "gpt-4-turbo",
 		Messages: []domain.ChatMessage{
 			{
 				Role: "user",
