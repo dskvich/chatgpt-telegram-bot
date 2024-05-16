@@ -55,7 +55,7 @@ func (c *textClient) GenerateChatResponse(chatID int64, prompt string) (string, 
 		}
 
 		session = domain.ChatSession{
-			ModelName: "gpt-4-turbo",
+			ModelName: "gpt-4o",
 			Messages: []domain.ChatMessage{
 				{Role: "system", Content: systemPrompt},
 			},
