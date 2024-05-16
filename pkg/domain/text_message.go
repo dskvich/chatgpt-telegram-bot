@@ -11,6 +11,6 @@ type TextMessage struct {
 func (t *TextMessage) ToChatMessage() tgbotapi.Chattable {
 	msg := tgbotapi.NewMessage(t.ChatID, t.Content)
 	msg.ReplyToMessageID = t.ReplyToMessageID
-	msg.ParseMode = tgbotapi.ModeMarkdown
+	msg.ParseMode = tgbotapi.ModeMarkdownV2
 	return msg
 }
