@@ -12,8 +12,6 @@ import (
 
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/auth"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/chatgpt"
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/command"
-	handler2 "github.com/sushkevichd/chatgpt-telegram-bot/pkg/command/handler"
 	converter2 "github.com/sushkevichd/chatgpt-telegram-bot/pkg/converter"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/database"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/digitalocean"
@@ -21,8 +19,9 @@ import (
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/logger"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/repository"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/service"
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/service/telegram"
-	telegrambot "github.com/sushkevichd/chatgpt-telegram-bot/pkg/telegram"
+	telegramservice "github.com/sushkevichd/chatgpt-telegram-bot/pkg/service/telegram"
+	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/telegram"
+	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/telegram/command"
 )
 
 type Config struct {
@@ -77,7 +76,7 @@ func setupServices() (service.Group, error) {
 	var svc service.Service
 	var svcGroup service.Group
 
-	bot, err := telegrambot.NewBot(cfg.TelegramBotToken)
+	bot, err := telegram.NewBot(cfg.TelegramBotToken)
 	if err != nil {
 		return nil, fmt.Errorf("creating telegram bot: %v", err)
 	}
@@ -93,7 +92,6 @@ func setupServices() (service.Group, error) {
 	settingsRepository := repository.NewSettingsRepository(db)
 
 	textGptClient := chatgpt.NewTextClient(cfg.OpenAIToken, chatRepository, settingsRepository)
-	usageGptClient := chatgpt.NewUsageClient(cfg.OpenAIToken)
 	imageGptClient := chatgpt.NewImageClient(cfg.OpenAIToken)
 	audioGptClient := chatgpt.NewAudioClient(cfg.OpenAIToken)
 	visionGptClient := chatgpt.NewVisionClient(cfg.OpenAIToken, chatRepository)
@@ -105,30 +103,29 @@ func setupServices() (service.Group, error) {
 
 	messagesCh := make(chan domain.Message)
 
-	handlers := []command.Handler{
-		// commands
-		handler2.NewInfo(messagesCh),
-		handler2.NewChat(chatRepository, messagesCh),
-		handler2.NewBalance(doClient, messagesCh),
-		handler2.NewUsage(usageGptClient, messagesCh),
-		handler2.NewSettings(settingsRepository, messagesCh),
+	commands := []telegram.Command{
+		// non ai commands
+		command.NewInfo(messagesCh),
+		command.NewChat(chatRepository, messagesCh),
+		command.NewBalance(doClient, messagesCh),
+		command.NewSettings(settingsRepository, messagesCh),
 
 		// awaitings
-		handler2.NewSettingsAwaiting(chatRepository, settingsRepository, messagesCh),
+		command.NewSettingsAwaiting(chatRepository, settingsRepository, messagesCh),
 
 		// features
-		handler2.NewGpt(textGptClient, chatRepository, messagesCh),
-		handler2.NewVoice(bot, &oggToMp3Converter, speechToTextConverter, textGptClient, imageGptClient, promptRepository, messagesCh),
-		handler2.NewDraw(imageGptClient, promptRepository, messagesCh),
-		handler2.NewVision(bot, visionGptClient, messagesCh),
+		command.NewGpt(textGptClient, chatRepository, messagesCh),
+		command.NewVoice(bot, &oggToMp3Converter, speechToTextConverter, textGptClient, imageGptClient, promptRepository, messagesCh),
+		command.NewDraw(imageGptClient, promptRepository, messagesCh),
+		command.NewVision(bot, visionGptClient, messagesCh),
 
 		// callbacks
-		handler2.NewDrawCallback(imageGptClient, promptRepository, messagesCh),
-		handler2.NewSettingsCallback(chatRepository, messagesCh),
+		command.NewDrawCallback(imageGptClient, promptRepository, messagesCh),
+		command.NewSettingsCallback(chatRepository, messagesCh),
 	}
-	dispatcher := command.NewDispatcher(handlers)
+	dispatcher := telegram.NewCommandDispatcher(commands)
 
-	if svc, err = telegram.NewService(bot, authenticator, dispatcher, messagesCh); err == nil {
+	if svc, err = telegramservice.NewService(bot, authenticator, dispatcher, messagesCh); err == nil {
 		svcGroup = append(svcGroup, svc)
 	} else {
 		return nil, err

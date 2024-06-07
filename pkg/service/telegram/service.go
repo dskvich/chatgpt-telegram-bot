@@ -22,7 +22,7 @@ type Bot interface {
 }
 
 type CommandDispatcher interface {
-	Dispatch(update tgbotapi.Update)
+	ExecuteCommands(update tgbotapi.Update)
 }
 
 type service struct {
@@ -79,7 +79,7 @@ func (s *service) handleUpdate(update tgbotapi.Update) {
 			return
 		}
 
-		s.commandDispatcher.Dispatch(update)
+		s.commandDispatcher.ExecuteCommands(update)
 	} else if update.CallbackQuery != nil {
 		slog.Info("callback received", "data", update.CallbackQuery.Data, "user", update.CallbackQuery.From, "message", update.CallbackQuery.Message)
 
@@ -92,7 +92,7 @@ func (s *service) handleUpdate(update tgbotapi.Update) {
 			return
 		}
 
-		s.commandDispatcher.Dispatch(update)
+		s.commandDispatcher.ExecuteCommands(update)
 	}
 }
 

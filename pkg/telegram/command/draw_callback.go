@@ -1,4 +1,4 @@
-package handler
+package command
 
 import (
 	"context"
@@ -36,11 +36,11 @@ func NewDrawCallback(
 	}
 }
 
-func (d *drawCallback) CanHandle(update *tgbotapi.Update) bool {
+func (d *drawCallback) CanExecute(update *tgbotapi.Update) bool {
 	return update.CallbackQuery != nil && strings.HasPrefix(update.CallbackQuery.Data, domain.DrawCallback)
 }
 
-func (d *drawCallback) Handle(update *tgbotapi.Update) {
+func (d *drawCallback) Execute(update *tgbotapi.Update) {
 	chatID := update.CallbackQuery.Message.Chat.ID
 	messageID := update.CallbackQuery.Message.ReplyToMessage.MessageID
 

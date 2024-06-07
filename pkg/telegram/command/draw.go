@@ -1,4 +1,4 @@
-package handler
+package command
 
 import (
 	"context"
@@ -38,7 +38,7 @@ func NewDraw(
 	}
 }
 
-func (d *draw) CanHandle(update *tgbotapi.Update) bool {
+func (d *draw) CanExecute(update *tgbotapi.Update) bool {
 	if update.Message == nil {
 		return false
 	}
@@ -52,7 +52,7 @@ func (d *draw) CanHandle(update *tgbotapi.Update) bool {
 	return false
 }
 
-func (d *draw) Handle(update *tgbotapi.Update) {
+func (d *draw) Execute(update *tgbotapi.Update) {
 	chatID := update.Message.Chat.ID
 	messageID := update.Message.MessageID
 	prompt := d.extractAfterSubstrings(update.Message.Text, drawSubstrings)

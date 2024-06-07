@@ -1,4 +1,4 @@
-package handler
+package command
 
 import (
 	"strings"
@@ -20,7 +20,7 @@ func NewInfo(
 	}
 }
 
-func (_ *info) CanHandle(update *tgbotapi.Update) bool {
+func (_ *info) CanExecute(update *tgbotapi.Update) bool {
 	if update.Message == nil {
 		return false
 	}
@@ -29,7 +29,7 @@ func (_ *info) CanHandle(update *tgbotapi.Update) bool {
 		strings.Contains(strings.ToLower(update.Message.Text), "что ты умеешь")
 }
 
-func (i *info) Handle(update *tgbotapi.Update) {
+func (i *info) Execute(update *tgbotapi.Update) {
 	i.outCh <- &domain.TextMessage{
 		ChatID:           update.Message.Chat.ID,
 		ReplyToMessageID: update.Message.MessageID,

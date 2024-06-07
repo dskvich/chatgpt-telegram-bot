@@ -1,4 +1,4 @@
-package handler
+package command
 
 import (
 	"fmt"
@@ -35,7 +35,7 @@ func NewGpt(
 	}
 }
 
-func (g *gpt) CanHandle(update *tgbotapi.Update) bool {
+func (g *gpt) CanExecute(update *tgbotapi.Update) bool {
 	if update.Message == nil {
 		return false
 	}
@@ -48,7 +48,7 @@ func (g *gpt) CanHandle(update *tgbotapi.Update) bool {
 		!strings.Contains(strings.ToLower(update.Message.Text), "рисуй")
 }
 
-func (g *gpt) Handle(update *tgbotapi.Update) {
+func (g *gpt) Execute(update *tgbotapi.Update) {
 	response, err := g.gptProvider.GenerateChatResponse(update.Message.Chat.ID, update.Message.Text)
 	if err != nil {
 		response = fmt.Sprintf("Failed to get response from ChatGPT: %v", err)
@@ -59,14 +59,4 @@ func (g *gpt) Handle(update *tgbotapi.Update) {
 		ReplyToMessageID: update.Message.MessageID,
 		Content:          response,
 	}
-}
-
-func (g *gpt) getUserName(user *tgbotapi.User) string {
-	if user.FirstName != "" {
-		return user.FirstName
-	}
-	if user.LastName != "" {
-		return user.LastName
-	}
-	return user.UserName
 }

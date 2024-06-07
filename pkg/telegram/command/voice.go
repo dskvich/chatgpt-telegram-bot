@@ -1,4 +1,4 @@
-package handler
+package command
 
 import (
 	"context"
@@ -64,11 +64,11 @@ func NewVoice(
 	}
 }
 
-func (v *voice) CanHandle(update *tgbotapi.Update) bool {
+func (v *voice) CanExecute(update *tgbotapi.Update) bool {
 	return update.Message != nil && update.Message.Voice != nil
 }
 
-func (v *voice) Handle(update *tgbotapi.Update) {
+func (v *voice) Execute(update *tgbotapi.Update) {
 	chatID := update.Message.Chat.ID
 	messageID := update.Message.MessageID
 

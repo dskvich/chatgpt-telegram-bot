@@ -1,4 +1,4 @@
-package handler
+package command
 
 import (
 	"context"
@@ -30,7 +30,7 @@ func NewSettings(
 	}
 }
 
-func (s *settings) CanHandle(update *tgbotapi.Update) bool {
+func (s *settings) CanExecute(update *tgbotapi.Update) bool {
 	if update.Message == nil {
 		return false
 	}
@@ -40,7 +40,7 @@ func (s *settings) CanHandle(update *tgbotapi.Update) bool {
 	return matched
 }
 
-func (s *settings) Handle(update *tgbotapi.Update) {
+func (s *settings) Execute(update *tgbotapi.Update) {
 	chatID := update.Message.Chat.ID
 	messageID := update.Message.MessageID
 

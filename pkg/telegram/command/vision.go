@@ -1,4 +1,4 @@
-package handler
+package command
 
 import (
 	"fmt"
@@ -34,7 +34,7 @@ func NewVision(
 	}
 }
 
-func (_ *vision) CanHandle(update *tgbotapi.Update) bool {
+func (_ *vision) CanExecute(update *tgbotapi.Update) bool {
 	if update.Message == nil {
 		return false
 	}
@@ -42,7 +42,7 @@ func (_ *vision) CanHandle(update *tgbotapi.Update) bool {
 	return len(update.Message.Photo) > 0
 }
 
-func (v *vision) Handle(update *tgbotapi.Update) {
+func (v *vision) Execute(update *tgbotapi.Update) {
 	chatID := update.Message.Chat.ID
 	messageID := update.Message.MessageID
 	caption := update.Message.Caption

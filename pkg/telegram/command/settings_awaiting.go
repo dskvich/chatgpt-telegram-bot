@@ -1,4 +1,4 @@
-package handler
+package command
 
 import (
 	"context"
@@ -36,7 +36,7 @@ func NewSettingsAwaiting(
 	}
 }
 
-func (s *settingsAwaiting) CanHandle(update *tgbotapi.Update) bool {
+func (s *settingsAwaiting) CanExecute(update *tgbotapi.Update) bool {
 	if update.Message == nil {
 		return false
 	}
@@ -46,7 +46,7 @@ func (s *settingsAwaiting) CanHandle(update *tgbotapi.Update) bool {
 	return session.AwaitingSettings
 }
 
-func (s *settingsAwaiting) Handle(update *tgbotapi.Update) {
+func (s *settingsAwaiting) Execute(update *tgbotapi.Update) {
 	chatID := update.Message.Chat.ID
 
 	response := "Новые системные настройки сохранены"

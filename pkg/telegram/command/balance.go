@@ -1,4 +1,4 @@
-package handler
+package command
 
 import (
 	"context"
@@ -29,11 +29,11 @@ func NewBalance(
 	}
 }
 
-func (b *balance) CanHandle(update *tgbotapi.Update) bool {
+func (b *balance) CanExecute(update *tgbotapi.Update) bool {
 	return update.Message != nil && strings.HasPrefix(update.Message.Text, "/balance")
 }
 
-func (b *balance) Handle(update *tgbotapi.Update) {
+func (b *balance) Execute(update *tgbotapi.Update) {
 	response, err := b.provider.GetBalanceMessage(context.TODO())
 	if err != nil {
 		response = fmt.Sprintf("Failed to fetch DigitalOcean balance: %v", err)

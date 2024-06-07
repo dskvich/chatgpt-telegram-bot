@@ -1,4 +1,4 @@
-package handler
+package command
 
 import (
 	"strings"
@@ -27,7 +27,7 @@ func NewChat(
 	}
 }
 
-func (n *chat) CanHandle(update *tgbotapi.Update) bool {
+func (n *chat) CanExecute(update *tgbotapi.Update) bool {
 	if update.Message == nil {
 		return false
 	}
@@ -42,7 +42,7 @@ func (n *chat) CanHandle(update *tgbotapi.Update) bool {
 	return false
 }
 
-func (c *chat) Handle(update *tgbotapi.Update) {
+func (c *chat) Execute(update *tgbotapi.Update) {
 	c.remover.RemoveSession(update.Message.Chat.ID)
 
 	c.outCh <- &domain.TextMessage{

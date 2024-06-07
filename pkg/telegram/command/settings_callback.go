@@ -1,4 +1,4 @@
-package handler
+package command
 
 import (
 	"strings"
@@ -27,11 +27,11 @@ func NewSettingsCallback(
 	}
 }
 
-func (s *settingsCallback) CanHandle(update *tgbotapi.Update) bool {
+func (s *settingsCallback) CanExecute(update *tgbotapi.Update) bool {
 	return update.CallbackQuery != nil && strings.HasPrefix(update.CallbackQuery.Data, domain.SettingsCallback)
 }
 
-func (s *settingsCallback) Handle(update *tgbotapi.Update) {
+func (s *settingsCallback) Execute(update *tgbotapi.Update) {
 	chatID := update.CallbackQuery.Message.Chat.ID
 
 	s.repo.SaveSession(chatID, domain.ChatSession{AwaitingSettings: true})
