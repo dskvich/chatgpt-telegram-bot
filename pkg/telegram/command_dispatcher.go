@@ -23,6 +23,7 @@ func (d *commandDispatcher) ExecuteCommands(update tgbotapi.Update) {
 	for _, command := range d.commands {
 		if command.CanExecute(&update) {
 			command.Execute(&update)
+			return
 		}
 	}
 }
