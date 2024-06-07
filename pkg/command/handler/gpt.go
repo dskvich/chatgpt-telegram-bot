@@ -49,10 +49,7 @@ func (g *gpt) CanHandle(update *tgbotapi.Update) bool {
 }
 
 func (g *gpt) Handle(update *tgbotapi.Update) {
-	userName := g.getUserName(update.Message.From)
-	messageToGPT := userName + " спрашивает: " + update.Message.Text
-
-	response, err := g.gptProvider.GenerateChatResponse(update.Message.Chat.ID, messageToGPT)
+	response, err := g.gptProvider.GenerateChatResponse(update.Message.Chat.ID, update.Message.Text)
 	if err != nil {
 		response = fmt.Sprintf("Failed to get response from ChatGPT: %v", err)
 	}
