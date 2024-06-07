@@ -12,7 +12,7 @@ import (
 
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/auth"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/chatgpt"
-	converter2 "github.com/sushkevichd/chatgpt-telegram-bot/pkg/converter"
+	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/converter"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/database"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/digitalocean"
 	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/domain"
@@ -98,11 +98,10 @@ func setupServices() (service.Group, error) {
 
 	doClient := digitalocean.NewClient(cfg.DigitalOceanAccessToken)
 
-	oggToMp3Converter := converter2.OggTomp3{}
-	speechToTextConverter := converter2.NewSpeechToText(audioGptClient)
+	oggToMp3Converter := converter.OggTomp3{}
+	speechToTextConverter := converter.NewSpeechToText(audioGptClient)
 
 	messagesCh := make(chan domain.Message)
-
 	commands := []telegram.Command{
 		// non ai commands
 		command.NewInfo(messagesCh),
@@ -123,9 +122,10 @@ func setupServices() (service.Group, error) {
 		command.NewDrawCallback(imageGptClient, promptRepository, messagesCh),
 		command.NewSettingsCallback(chatRepository, messagesCh),
 	}
-	dispatcher := telegram.NewCommandDispatcher(commands)
 
-	if svc, err = telegramservice.NewService(bot, authenticator, dispatcher, messagesCh); err == nil {
+	commandDispatcher := telegram.NewCommandDispatcher(commands)
+
+	if svc, err = telegramservice.NewService(bot, authenticator, commandDispatcher, messagesCh); err == nil {
 		svcGroup = append(svcGroup, svc)
 	} else {
 		return nil, err
