@@ -44,9 +44,14 @@ func (d *draw) CanExecute(update *tgbotapi.Update) bool {
 	}
 
 	lowerText := strings.ToLower(update.Message.Text)
+
+	if strings.HasPrefix(lowerText, "/image") {
+		return true
+	}
+
 	for _, substring := range drawSubstrings {
 		if strings.Contains(lowerText, substring) {
-			return update.Message != nil
+			return true
 		}
 	}
 	return false
