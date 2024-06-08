@@ -44,12 +44,31 @@ func (b *bot) GetUpdates() tgbotapi.UpdatesChannel {
 }
 
 func (b *bot) Send(message domain.Message) error {
-	if _, err := b.api.Send(message.ToChatMessage()); err != nil {
-		return fmt.Errorf("sending message: %v", err)
+	chatMessage := message.ToChatMessage()
+	if _, err := b.api.Send(chatMessage); err != nil {
+		return b.handleError(chatMessage, err)
 	}
 	return nil
 }
 
+func (b *bot) handleError(chatMessage tgbotapi.Chattable, err error) error {
+	messageConfig, ok := chatMessage.(tgbotapi.MessageConfig)
+	if !ok {
+		slog.Error("type assertion failed", "expectedType", "tgbotapi.MessageConfig", "actualType", fmt.Sprintf("%T", chatMessage))
+		return fmt.Errorf("unexpected type %T for chatMessage", chatMessage)
+	}
+
+	errorMessage := domain.TextMessage{
+		ChatID:           messageConfig.ChatID,
+		ReplyToMessageID: messageConfig.ReplyToMessageID,
+		Content:          "Не удалось доставить ответ",
+	}
+	if _, err := b.api.Send(errorMessage.ToChatMessage()); err != nil {
+		return fmt.Errorf("sending failure notification: %v", err)
+	}
+
+	return fmt.Errorf("sending message: %v", err)
+}
 func (b *bot) DownloadFile(fileID string) (string, error) {
 	file, err := b.api.GetFile(tgbotapi.FileConfig{FileID: fileID})
 	if err != nil {
