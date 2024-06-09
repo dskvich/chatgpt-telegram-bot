@@ -76,9 +76,9 @@ func setupServices() (service.Group, error) {
 	var svc service.Service
 	var svcGroup service.Group
 
-	bot, err := telegram.NewBot(cfg.TelegramBotToken)
+	telegramClient, err := telegram.NewClient(cfg.TelegramBotToken)
 	if err != nil {
-		return nil, fmt.Errorf("creating telegram bot: %v", err)
+		return nil, fmt.Errorf("creating telegram client: %v", err)
 	}
 	authenticator := auth.NewAuthenticator(cfg.TelegramAuthorizedUserIDs)
 
@@ -114,9 +114,9 @@ func setupServices() (service.Group, error) {
 
 		// features
 		command.NewGpt(textGptClient, chatRepository, messagesCh),
-		command.NewVoice(bot, &oggToMp3Converter, speechToTextConverter, textGptClient, imageGptClient, promptRepository, messagesCh),
+		command.NewVoice(telegramClient, &oggToMp3Converter, speechToTextConverter, textGptClient, imageGptClient, promptRepository, messagesCh),
 		command.NewDraw(imageGptClient, promptRepository, messagesCh),
-		command.NewVision(bot, visionGptClient, messagesCh),
+		command.NewVision(telegramClient, visionGptClient, messagesCh),
 
 		// callbacks
 		command.NewDrawCallback(imageGptClient, promptRepository, messagesCh),
@@ -125,7 +125,7 @@ func setupServices() (service.Group, error) {
 
 	commandDispatcher := telegram.NewCommandDispatcher(commands)
 
-	if svc, err = telegramservice.NewService(bot, authenticator, commandDispatcher, messagesCh); err == nil {
+	if svc, err = telegramservice.NewService(telegramClient, authenticator, commandDispatcher, messagesCh); err == nil {
 		svcGroup = append(svcGroup, svc)
 	} else {
 		return nil, err
