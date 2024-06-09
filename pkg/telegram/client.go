@@ -15,43 +15,45 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 )
 
-type bot struct {
-	token   string
-	api     *tgbotapi.BotAPI
-	updates tgbotapi.UpdatesChannel
+type client struct {
+	token     string
+	bot       *tgbotapi.BotAPI
+	updatesCh tgbotapi.UpdatesChannel
 }
 
-func NewBot(token string) (*bot, error) {
-	api, err := tgbotapi.NewBotAPI(token)
+func NewClient(token string) (*client, error) {
+	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
-		return nil, fmt.Errorf("creating bot api: %v", err)
+		return nil, fmt.Errorf("creating bot api instance: %v", err)
 	}
 
-	slog.Info("authorized on telegram", "bot", api.Self)
+	bot.Debug = true
+
+	slog.Info("authorized on telegram", "account", bot.Self.UserName)
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
-	return &bot{
-		token:   token,
-		api:     api,
-		updates: api.GetUpdatesChan(u),
+	return &client{
+		token:     token,
+		bot:       bot,
+		updatesCh: bot.GetUpdatesChan(u),
 	}, nil
 }
 
-func (b *bot) GetUpdates() tgbotapi.UpdatesChannel {
-	return b.updates
+func (c *client) GetUpdates() tgbotapi.UpdatesChannel {
+	return c.updatesCh
 }
 
-func (b *bot) Send(message domain.Message) error {
+func (c *client) Send(message domain.Message) error {
 	chatMessage := message.ToChatMessage()
-	if _, err := b.api.Send(chatMessage); err != nil {
-		return b.handleError(chatMessage, err)
+	if _, err := c.bot.Send(chatMessage); err != nil {
+		return c.handleError(chatMessage, err)
 	}
 	return nil
 }
 
-func (b *bot) handleError(chatMessage tgbotapi.Chattable, err error) error {
+func (c *client) handleError(chatMessage tgbotapi.Chattable, err error) error {
 	messageConfig, ok := chatMessage.(tgbotapi.MessageConfig)
 	if !ok {
 		slog.Error("type assertion failed", "expectedType", "tgbotapi.MessageConfig", "actualType", fmt.Sprintf("%T", chatMessage))
@@ -63,24 +65,24 @@ func (b *bot) handleError(chatMessage tgbotapi.Chattable, err error) error {
 		ReplyToMessageID: messageConfig.ReplyToMessageID,
 		Content:          "Не удалось доставить ответ",
 	}
-	if _, err := b.api.Send(errorMessage.ToChatMessage()); err != nil {
+	if _, err := c.bot.Send(errorMessage.ToChatMessage()); err != nil {
 		return fmt.Errorf("sending failure notification: %v", err)
 	}
 
 	return fmt.Errorf("sending message: %v", err)
 }
-func (b *bot) DownloadFile(fileID string) (string, error) {
-	file, err := b.api.GetFile(tgbotapi.FileConfig{FileID: fileID})
+func (c *client) DownloadFile(fileID string) (string, error) {
+	file, err := c.bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
 	if err != nil {
 		return "", fmt.Errorf("getting file: %v", err)
 	}
 
-	req, err := http.NewRequest(http.MethodGet, file.Link(b.token), nil)
+	req, err := http.NewRequest(http.MethodGet, file.Link(c.token), nil)
 	if err != nil {
 		return "", fmt.Errorf("creating request: %v", err)
 	}
 
-	resp, err := b.api.Client.Do(req)
+	resp, err := c.bot.Client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("executing request: %v", err)
 	}
@@ -107,18 +109,18 @@ func (b *bot) DownloadFile(fileID string) (string, error) {
 	return filePath, nil
 }
 
-func (b *bot) GetFile(fileID string) (string, error) {
-	file, err := b.api.GetFile(tgbotapi.FileConfig{FileID: fileID})
+func (c *client) GetFile(fileID string) (string, error) {
+	file, err := c.bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
 	if err != nil {
 		return "", fmt.Errorf("getting file: %v", err)
 	}
 
-	req, err := http.NewRequest(http.MethodGet, file.Link(b.token), nil)
+	req, err := http.NewRequest(http.MethodGet, file.Link(c.token), nil)
 	if err != nil {
 		return "", fmt.Errorf("creating request: %v", err)
 	}
 
-	resp, err := b.api.Client.Do(req)
+	resp, err := c.bot.Client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("executing request: %v", err)
 	}
