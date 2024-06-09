@@ -19,7 +19,7 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/repository"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/service"
-	telegramservice "github.com/dskvich/chatgpt-telegram-bot/pkg/service/telegram"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/service/messaging"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram/command"
 )
@@ -123,9 +123,9 @@ func setupServices() (service.Group, error) {
 		command.NewSettingsCallback(chatRepository, messagesCh),
 	}
 
-	commandDispatcher := telegram.NewCommandDispatcher(commands)
+	commandHandler := telegram.NewCommandHandler(commands)
 
-	if svc, err = telegramservice.NewService(telegramClient, authenticator, commandDispatcher, messagesCh); err == nil {
+	if svc, err = messaging.NewService(telegramClient, authenticator, commandHandler, messagesCh); err == nil {
 		svcGroup = append(svcGroup, svc)
 	} else {
 		return nil, err

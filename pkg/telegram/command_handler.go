@@ -9,18 +9,18 @@ type Command interface {
 	Execute(update *tgbotapi.Update)
 }
 
-type commandDispatcher struct {
+type commandHandler struct {
 	commands []Command
 }
 
-func NewCommandDispatcher(commands []Command) *commandDispatcher {
-	return &commandDispatcher{
+func NewCommandHandler(commands []Command) *commandHandler {
+	return &commandHandler{
 		commands: commands,
 	}
 }
 
-func (d *commandDispatcher) ExecuteCommands(update tgbotapi.Update) {
-	for _, command := range d.commands {
+func (с *commandHandler) Handle(update tgbotapi.Update) {
+	for _, command := range с.commands {
 		if command.CanExecute(&update) {
 			command.Execute(&update)
 			return
