@@ -1,6 +1,10 @@
 package domain
 
-import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+import (
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+
+	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/render"
+)
 
 type TextMessage struct {
 	ChatID           int64
@@ -9,7 +13,11 @@ type TextMessage struct {
 }
 
 func (t *TextMessage) ToChatMessage() tgbotapi.Chattable {
-	msg := tgbotapi.NewMessage(t.ChatID, t.Content)
+	htmlOutput := render.ToHTML(t.Content)
+
+	msg := tgbotapi.NewMessage(t.ChatID, htmlOutput)
 	msg.ReplyToMessageID = t.ReplyToMessageID
+	msg.ParseMode = tgbotapi.ModeHTML
+
 	return msg
 }
