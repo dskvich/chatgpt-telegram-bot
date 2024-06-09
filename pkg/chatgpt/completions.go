@@ -1,6 +1,6 @@
 package chatgpt
 
-import "github.com/sushkevichd/chatgpt-telegram-bot/pkg/domain"
+import "github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 
 type chatCompletionsRequest struct {
 	Model     string               `json:"model"`

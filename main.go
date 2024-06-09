@@ -10,18 +10,18 @@ import (
 
 	"github.com/caarlos0/env/v9"
 
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/auth"
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/chatgpt"
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/converter"
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/database"
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/digitalocean"
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/domain"
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/logger"
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/repository"
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/service"
-	telegramservice "github.com/sushkevichd/chatgpt-telegram-bot/pkg/service/telegram"
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/telegram"
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/telegram/command"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/auth"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/chatgpt"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/converter"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/database"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/digitalocean"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/repository"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/service"
+	telegramservice "github.com/dskvich/chatgpt-telegram-bot/pkg/service/telegram"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram/command"
 )
 
 type Config struct {

@@ -8,7 +8,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/domain"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
 type TextChatRepository interface {

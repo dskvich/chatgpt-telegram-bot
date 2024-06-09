@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/domain"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
 type promptRepository struct {

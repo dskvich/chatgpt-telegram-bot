@@ -1,4 +1,4 @@
-module github.com/sushkevichd/chatgpt-telegram-bot
+module github.com/dskvich/chatgpt-telegram-bot
 
 go 1.21
 

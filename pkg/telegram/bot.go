@@ -11,8 +11,8 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/domain"
-	"github.com/sushkevichd/chatgpt-telegram-bot/pkg/logger"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 )
 
 type bot struct {
