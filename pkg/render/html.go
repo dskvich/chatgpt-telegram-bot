@@ -32,6 +32,12 @@ func (hr *htmlRenderer) BlockCode(out *bytes.Buffer, text []byte, lang string) {
 	out.WriteString("</pre>\n")
 }
 
+func (hr *htmlRenderer) CodeSpan(out *bytes.Buffer, text []byte) {
+	out.WriteString("<code>")
+	out.WriteString(string(text))
+	out.WriteString("</code>")
+}
+
 func (hr *htmlRenderer) Header(out *bytes.Buffer, text func() bool, level int, id string) {
 	hr.Paragraph(out, text)
 }
@@ -43,6 +49,10 @@ func (hr *htmlRenderer) HRule(out *bytes.Buffer) {
 func (hr *htmlRenderer) BlockQuote(out *bytes.Buffer, text []byte) {
 	out.WriteString("> ")
 	out.Write(text)
+	out.WriteByte('\n')
+}
+
+func (hr *htmlRenderer) LineBreak(out *bytes.Buffer) {
 	out.WriteByte('\n')
 }
 
