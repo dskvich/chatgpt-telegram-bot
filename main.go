@@ -17,11 +17,13 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/digitalocean"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/openai"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/repository"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/service"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/service/messaging"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram/command"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/tools"
 )
 
 type Config struct {
@@ -91,7 +93,29 @@ func setupServices() (service.Group, error) {
 	promptRepository := repository.NewPromptRepository(db)
 	settingsRepository := repository.NewSettingsRepository(db)
 
-	textGptClient := chatgpt.NewTextClient(cfg.OpenAIToken, chatRepository, settingsRepository)
+	// Initialize tools
+	getTelegramChatSettingsTool := tools.NewGetChatSettings(settingsRepository)
+	clearChatSessionTool := tools.NewClearChatSession(chatRepository)
+	setSystemPromptTool := tools.NewSetSystemPrompt(settingsRepository)
+
+	tools := []openai.ToolInterface{
+		getTelegramChatSettingsTool,
+		clearChatSessionTool,
+		setSystemPromptTool,
+	}
+
+	// Initialize function map
+	functionMap := openai.ToolFunctionMap{
+		getTelegramChatSettingsTool.Name(): getTelegramChatSettingsTool.Function,
+		clearChatSessionTool.Name():        clearChatSessionTool.Function,
+		setSystemPromptTool.Name():         setSystemPromptTool.Function,
+	}
+
+	//textGptClient := chatgpt.NewTextClient(cfg.OpenAIToken, chatRepository, settingsRepository)
+	textGptClient, err := openai.NewClient(cfg.OpenAIToken, chatRepository, settingsRepository, tools, functionMap)
+	if err != nil {
+		return nil, fmt.Errorf("creating open ai client: %v", err)
+	}
 	imageGptClient := chatgpt.NewImageClient(cfg.OpenAIToken)
 	audioGptClient := chatgpt.NewAudioClient(cfg.OpenAIToken)
 	visionGptClient := chatgpt.NewVisionClient(cfg.OpenAIToken, chatRepository)
@@ -105,12 +129,7 @@ func setupServices() (service.Group, error) {
 	commands := []telegram.Command{
 		// non ai commands
 		command.NewInfo(messagesCh),
-		command.NewCleanChat(chatRepository, messagesCh),
 		command.NewBalance(doClient, messagesCh),
-		command.NewSettings(settingsRepository, messagesCh),
-
-		// awaitings
-		command.NewSettingsAwaiting(chatRepository, settingsRepository, messagesCh),
 
 		// features
 		command.NewGpt(textGptClient, chatRepository, messagesCh),
@@ -120,7 +139,6 @@ func setupServices() (service.Group, error) {
 
 		// callbacks
 		command.NewDrawCallback(imageGptClient, promptRepository, messagesCh),
-		command.NewSettingsCallback(chatRepository, messagesCh),
 	}
 
 	commandHandler := telegram.NewCommandHandler(commands)

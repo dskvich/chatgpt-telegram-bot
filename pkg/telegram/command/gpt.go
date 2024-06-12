@@ -10,7 +10,7 @@ import (
 )
 
 type GptProvider interface {
-	GenerateChatResponse(chatID int64, prompt string) (string, error)
+	CreateChatCompletion(chatID int64, prompt string) (string, error)
 }
 
 type ActiveChatRepository interface {
@@ -49,9 +49,9 @@ func (g *gpt) CanExecute(update *tgbotapi.Update) bool {
 }
 
 func (g *gpt) Execute(update *tgbotapi.Update) {
-	response, err := g.gptProvider.GenerateChatResponse(update.Message.Chat.ID, update.Message.Text)
+	response, err := g.gptProvider.CreateChatCompletion(update.Message.Chat.ID, update.Message.Text)
 	if err != nil {
-		response = fmt.Sprintf("Failed to get response from ChatGPT: %v", err)
+		response = fmt.Sprintf("Failed to get chat completion: %v", err)
 	}
 
 	g.outCh <- &domain.TextMessage{
