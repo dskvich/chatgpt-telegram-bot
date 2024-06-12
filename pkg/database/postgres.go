@@ -30,7 +30,6 @@ func NewPostgres(url, host string) (*sql.DB, error) {
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("connecting to database: %v", err)
 	}
-	slog.Info("connected to the database")
 
 	if err := runMigrations(db); err != nil {
 		return nil, fmt.Errorf("running migrations: %v", err)
