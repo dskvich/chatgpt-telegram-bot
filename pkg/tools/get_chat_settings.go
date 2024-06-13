@@ -38,11 +38,13 @@ func (g *getChatSettings) Parameters() jsonschema.Definition {
 	}
 }
 
-func (g *getChatSettings) Function(chatID int64) (string, error) {
-	settings, err := g.settingsRepo.GetAll(context.Background(), chatID)
-	if err != nil {
-		slog.Error("failed to get chat settings", "chatId", chatID, logger.Err(err))
-	}
+func (g *getChatSettings) Function() any {
+	return func(chatID int64) (string, error) {
+		settings, err := g.settingsRepo.GetAll(context.Background(), chatID)
+		if err != nil {
+			slog.Error("failed to get chat settings", "chatId", chatID, logger.Err(err))
+		}
 
-	return fmt.Sprint(settings), nil
+		return fmt.Sprint(settings), nil
+	}
 }

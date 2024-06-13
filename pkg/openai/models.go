@@ -7,31 +7,29 @@ import (
 )
 
 const (
-	ChatMessageRoleSystem    = "system"
-	ChatMessageRoleUser      = "user"
-	ChatMessageRoleAssistant = "assistant"
-	ChatMessageRoleTool      = "tool"
+	chatMessageRoleSystem    = "system"
+	chatMessageRoleUser      = "user"
+	chatMessageRoleAssistant = "assistant"
+	chatMessageRoleTool      = "tool"
+
+	toolTypeFunction toolType = "function"
 )
 
 type chatCompletionsRequest struct {
 	Model     string               `json:"model"`
 	Messages  []domain.ChatMessage `json:"messages"`
 	MaxTokens int                  `json:"max_tokens,omitempty"`
-	Tools     []Tool               `json:"tools,omitempty"`
+	Tools     []tool               `json:"tools,omitempty"`
 }
 
-type Tool struct {
-	Type     ToolType  `json:"type"`
-	Function *Function `json:"function,omitempty"`
+type tool struct {
+	Type     toolType  `json:"type"`
+	Function *function `json:"function,omitempty"`
 }
 
-type ToolType string
+type toolType string
 
-const (
-	ToolTypeFunction ToolType = "function"
-)
-
-type Function struct {
+type function struct {
 	Name        string                `json:"name"`
 	Description string                `json:"description,omitempty"`
 	Parameters  jsonschema.Definition `json:"parameters"`
@@ -42,10 +40,10 @@ type chatCompletionsResponse struct {
 	Object  string                 `json:"object"`
 	Created int                    `json:"created"`
 	Model   string                 `json:"model"`
-	Choices []ChatCompletionChoice `json:"choices"`
+	Choices []chatCompletionChoice `json:"choices"`
 }
 
-type ChatCompletionChoice struct {
+type chatCompletionChoice struct {
 	Index        int                `json:"index"`
 	Message      domain.ChatMessage `json:"message"`
 	FinishReason string             `json:"finish_reason"`

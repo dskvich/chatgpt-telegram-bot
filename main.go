@@ -94,25 +94,14 @@ func setupServices() (service.Group, error) {
 	settingsRepository := repository.NewSettingsRepository(db)
 
 	// Initialize tools
-	getTelegramChatSettingsTool := tools.NewGetChatSettings(settingsRepository)
-	clearChatSessionTool := tools.NewClearChatSession(chatRepository)
-	setSystemPromptTool := tools.NewSetSystemPrompt(settingsRepository)
-
-	tools := []openai.ToolInterface{
-		getTelegramChatSettingsTool,
-		clearChatSessionTool,
-		setSystemPromptTool,
+	tools := []openai.ToolFunction{
+		tools.NewGetChatSettings(settingsRepository),
+		tools.NewClearChatSession(chatRepository),
+		tools.NewSetSystemPrompt(settingsRepository),
 	}
 
-	// Initialize function map
-	functionMap := openai.ToolFunctionMap{
-		getTelegramChatSettingsTool.Name(): getTelegramChatSettingsTool.Function,
-		clearChatSessionTool.Name():        clearChatSessionTool.Function,
-		setSystemPromptTool.Name():         setSystemPromptTool.Function,
-	}
-
-	//textGptClient := chatgpt.NewTextClient(cfg.OpenAIToken, chatRepository, settingsRepository)
-	textGptClient, err := openai.NewClient(cfg.OpenAIToken, chatRepository, settingsRepository, tools, functionMap)
+	//TODO rename textGptClient to openAiClient
+	textGptClient, err := openai.NewClient(cfg.OpenAIToken, chatRepository, settingsRepository, tools)
 	if err != nil {
 		return nil, fmt.Errorf("creating open ai client: %v", err)
 	}

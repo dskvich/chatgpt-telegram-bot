@@ -34,8 +34,10 @@ func (c *clearChatSession) Parameters() jsonschema.Definition {
 	}
 }
 
-func (c *clearChatSession) Function(chatID int64) (string, error) {
-	c.remover.RemoveSession(chatID)
+func (c *clearChatSession) Function() any {
+	return func(chatID int64) (string, error) {
+		c.remover.RemoveSession(chatID)
 
-	return "", domain.ErrSessionInvalidated
+		return "", domain.ErrSessionInvalidated
+	}
 }

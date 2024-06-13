@@ -45,9 +45,11 @@ func (s *setSystemPrompt) Parameters() jsonschema.Definition {
 	}
 }
 
-func (s *setSystemPrompt) Function(chatID int64, prompt string) (string, error) {
-	if err := s.settingsRepo.Save(context.Background(), chatID, domain.SystemPromptKey, prompt); err != nil {
-		return "", fmt.Errorf("saving syetm prompt: %v", err)
+func (s *setSystemPrompt) Function() any {
+	return func(chatID int64, prompt string) (string, error) {
+		if err := s.settingsRepo.Save(context.Background(), chatID, domain.SystemPromptKey, prompt); err != nil {
+			return "", fmt.Errorf("saving syetm prompt: %v", err)
+		}
+		return "Новые системные настройки сохранены", nil
 	}
-	return "Новые системные настройки сохранены", nil
 }

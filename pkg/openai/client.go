@@ -26,12 +26,13 @@ type SettingsRepository interface {
 	GetByKey(ctx context.Context, chatID int64, key string) (string, error)
 }
 
-type ToolFunctionMap map[string]any
+type toolFunctionMap map[string]any
 
-type ToolInterface interface {
+type ToolFunction interface {
 	Name() string
 	Description() string
 	Parameters() jsonschema.Definition
+	Function() any
 }
 
 type client struct {
@@ -39,16 +40,15 @@ type client struct {
 	hc                 *http.Client
 	chatRepo           ChatRepository
 	settingsRepo       SettingsRepository
-	tools              []ToolInterface
-	availableFunctions ToolFunctionMap
+	tools              []ToolFunction
+	availableFunctions toolFunctionMap
 }
 
 func NewClient(
 	token string,
 	chatRepo ChatRepository,
 	settingsRepo SettingsRepository,
-	tools []ToolInterface,
-	availableFunctions ToolFunctionMap,
+	tools []ToolFunction,
 ) (*client, error) {
 	if token == "" {
 		return nil, fmt.Errorf("token is empty")
@@ -59,14 +59,22 @@ func NewClient(
 		chatRepo:           chatRepo,
 		settingsRepo:       settingsRepo,
 		tools:              tools,
-		availableFunctions: availableFunctions,
+		availableFunctions: createAvailableFunctions(tools),
 	}, nil
+}
+
+func createAvailableFunctions(tools []ToolFunction) toolFunctionMap {
+	m := make(toolFunctionMap)
+	for _, t := range tools {
+		m[t.Name()] = t.Function()
+	}
+	return m
 }
 
 func (c *client) CreateChatCompletion(chatID int64, prompt string) (string, error) {
 	session := c.getSession(chatID)
 
-	userMessage := domain.ChatMessage{Role: ChatMessageRoleUser, Content: prompt}
+	userMessage := domain.ChatMessage{Role: chatMessageRoleUser, Content: prompt}
 	session.Messages = append(session.Messages, userMessage)
 
 	response, err := c.processChatCompletion(session)
@@ -111,7 +119,7 @@ func (c *client) createNewSession(chatID int64) *domain.ChatSession {
 	return &domain.ChatSession{
 		ModelName: "gpt-4o",
 		Messages: []domain.ChatMessage{
-			{Role: ChatMessageRoleSystem, Content: systemPrompt},
+			{Role: chatMessageRoleSystem, Content: systemPrompt},
 		},
 	}
 }
@@ -130,21 +138,21 @@ func (c *client) processChatCompletion(session *domain.ChatSession) (*domain.Cha
 	response := &resp.Choices[0].Message
 	session.Messages = append(session.Messages, *response)
 
-	if response.Role != ChatMessageRoleAssistant {
-		return nil, fmt.Errorf("unexpected role: received %v, expected %v", response.Role, ChatMessageRoleAssistant)
+	if response.Role != chatMessageRoleAssistant {
+		return nil, fmt.Errorf("unexpected role: received %v, expected %v", response.Role, chatMessageRoleAssistant)
 	}
 	return response, nil
 }
 
 func (c *client) buildChatCompletionRequest(model string, messages []domain.ChatMessage) *chatCompletionsRequest {
-	tools := make([]Tool, 0, len(c.tools))
-	for _, tool := range c.tools {
-		tools = append(tools, Tool{
-			Type: ToolTypeFunction,
-			Function: &Function{
-				Name:        tool.Name(),
-				Description: tool.Description(),
-				Parameters:  tool.Parameters(),
+	tools := make([]tool, 0, len(c.tools))
+	for _, t := range c.tools {
+		tools = append(tools, tool{
+			Type: toolTypeFunction,
+			Function: &function{
+				Name:        t.Name(),
+				Description: t.Description(),
+				Parameters:  t.Parameters(),
 			},
 		})
 	}
@@ -170,7 +178,7 @@ func (c *client) handleToolCalls(chatID int64, session *domain.ChatSession, tool
 
 		toolMessage := domain.ChatMessage{
 			ToolCallID: toolCall.ID,
-			Role:       ChatMessageRoleTool,
+			Role:       chatMessageRoleTool,
 			Name:       toolCall.Function.Name,
 			Content:    toolResponse,
 		}
