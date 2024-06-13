@@ -6,6 +6,13 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
+const (
+	ChatMessageRoleSystem    = "system"
+	ChatMessageRoleUser      = "user"
+	ChatMessageRoleAssistant = "assistant"
+	ChatMessageRoleTool      = "tool"
+)
+
 type chatCompletionsRequest struct {
 	Model     string               `json:"model"`
 	Messages  []domain.ChatMessage `json:"messages"`

@@ -66,7 +66,7 @@ func NewClient(
 func (c *client) CreateChatCompletion(chatID int64, prompt string) (string, error) {
 	session := c.getSession(chatID)
 
-	userMessage := domain.ChatMessage{Role: "user", Content: prompt}
+	userMessage := domain.ChatMessage{Role: ChatMessageRoleUser, Content: prompt}
 	session.Messages = append(session.Messages, userMessage)
 
 	response, err := c.processChatCompletion(session)
@@ -111,7 +111,7 @@ func (c *client) createNewSession(chatID int64) *domain.ChatSession {
 	return &domain.ChatSession{
 		ModelName: "gpt-4o",
 		Messages: []domain.ChatMessage{
-			{Role: "system", Content: systemPrompt},
+			{Role: ChatMessageRoleSystem, Content: systemPrompt},
 		},
 	}
 }
@@ -130,8 +130,8 @@ func (c *client) processChatCompletion(session *domain.ChatSession) (*domain.Cha
 	response := &resp.Choices[0].Message
 	session.Messages = append(session.Messages, *response)
 
-	if response.Role != "assistant" {
-		return nil, fmt.Errorf("expected assistant role, got %s", response.Role)
+	if response.Role != ChatMessageRoleAssistant {
+		return nil, fmt.Errorf("unexpected role: received %v, expected %v", response.Role, ChatMessageRoleAssistant)
 	}
 	return response, nil
 }
@@ -170,7 +170,7 @@ func (c *client) handleToolCalls(chatID int64, session *domain.ChatSession, tool
 
 		toolMessage := domain.ChatMessage{
 			ToolCallID: toolCall.ID,
-			Role:       "tool",
+			Role:       ChatMessageRoleTool,
 			Name:       toolCall.Function.Name,
 			Content:    toolResponse,
 		}
