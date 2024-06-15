@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -88,9 +87,6 @@ func (c *client) CreateChatCompletion(chatID int64, prompt string) (string, erro
 	}
 
 	if err := c.handleToolCalls(chatID, session, response.ToolCalls); err != nil {
-		if errors.Is(err, domain.ErrSessionInvalidated) {
-			return domain.SessionInvalidatedMessage, nil
-		}
 		return "", err
 	}
 
@@ -256,14 +252,14 @@ func (c *client) sendChatCompletionRequest(request *chatCompletionsRequest) (*ch
 	}
 	defer resp.Body.Close()
 
-	var chatResponse chatCompletionsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&chatResponse); err != nil {
-		return nil, fmt.Errorf("decoding response data: %v", err)
-	}
-
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("unexpected status code: %d, response: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var chatResponse chatCompletionsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&chatResponse); err != nil {
+		return nil, fmt.Errorf("decoding response data: %v", err)
 	}
 
 	return &chatResponse, nil

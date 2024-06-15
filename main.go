@@ -96,7 +96,6 @@ func setupServices() (service.Group, error) {
 	// Initialize tools
 	tools := []openai.ToolFunction{
 		tools.NewGetChatSettings(settingsRepository),
-		tools.NewClearChatSession(chatRepository),
 		tools.NewSetSystemPrompt(settingsRepository),
 	}
 
@@ -119,6 +118,7 @@ func setupServices() (service.Group, error) {
 		// non ai commands
 		command.NewInfo(messagesCh),
 		command.NewBalance(doClient, messagesCh),
+		command.NewCleanChatSession(chatRepository, messagesCh),
 
 		// features
 		command.NewGpt(textGptClient, chatRepository, messagesCh),
