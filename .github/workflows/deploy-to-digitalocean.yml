@@ -106,9 +106,6 @@ jobs:
               echo "Container ${{ env.IMAGE_NAME }} failed to start."
               exit 1
             fi
-            
-            echo "Cleaning up unused resources"
-            docker system prune --all --force
 
       - name: Extract Revision ID
         id: extract_revision
