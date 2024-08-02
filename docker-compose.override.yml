@@ -1,0 +1,11 @@
+version: '3.9'
+
+# for local development
+services:
+  app:
+    build: .
+    ports:
+      - 127.0.0.1:8888:8080
+  db:
+    ports:
+      - 127.0.0.1:65432:5432
