@@ -1,10 +1,14 @@
 package auth
 
+import "log/slog"
+
 type authenticator struct {
 	authorizedUserIDs []int64
 }
 
 func NewAuthenticator(authorizedUserIDs []int64) *authenticator {
+	slog.Info("telegram authorized user IDs", "user_ids", authorizedUserIDs)
+
 	return &authenticator{
 		authorizedUserIDs: authorizedUserIDs,
 	}
