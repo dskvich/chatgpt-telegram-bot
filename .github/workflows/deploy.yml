@@ -1,4 +1,4 @@
-name: Deploy to DigitalOcean Droplet
+name: Deploy
 
 on:
   push:
@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - name: Deploy to Digital Ocean droplet via SSH
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v0.1.4
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -84,7 +84,6 @@ jobs:
               --env TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
               --env OPEN_AI_TOKEN=${{ secrets.OPEN_AI_TOKEN }} \
               --env TELEGRAM_AUTHORIZED_USER_IDS="${{ vars.TELEGRAM_AUTHORIZED_USER_IDS }}" \
-              --env DIGITALOCEAN_ACCESS_TOKEN=${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} \
               --network my-network \
               $IMAGE_TAG
             

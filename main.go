@@ -29,7 +29,6 @@ type Config struct {
 	OpenAIToken               string  `env:"OPEN_AI_TOKEN,required"`
 	TelegramBotToken          string  `env:"TELEGRAM_BOT_TOKEN,required"`
 	TelegramAuthorizedUserIDs []int64 `env:"TELEGRAM_AUTHORIZED_USER_IDS" envSeparator:" "`
-	DigitalOceanAccessToken   string  `env:"DIGITALOCEAN_ACCESS_TOKEN,required"`
 	PgURL                     string  `env:"DATABASE_URL"`
 	PgHost                    string  `env:"DB_HOST" envDefault:"localhost:65432"`
 }
