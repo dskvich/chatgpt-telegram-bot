@@ -14,7 +14,6 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/chatgpt"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/converter"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/database"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/digitalocean"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/openai"
@@ -108,8 +107,6 @@ func setupServices() (service.Group, error) {
 	audioGptClient := chatgpt.NewAudioClient(cfg.OpenAIToken)
 	visionGptClient := chatgpt.NewVisionClient(cfg.OpenAIToken, chatRepository)
 
-	doClient := digitalocean.NewClient(cfg.DigitalOceanAccessToken)
-
 	oggToMp3Converter := converter.OggTomp3{}
 	speechToTextConverter := converter.NewSpeechToText(audioGptClient)
 
@@ -117,7 +114,6 @@ func setupServices() (service.Group, error) {
 	commands := []telegram.Command{
 		// non ai commands
 		command.NewInfo(messagesCh),
-		command.NewBalance(doClient, messagesCh),
 		command.NewCleanChatSession(chatRepository, messagesCh),
 
 		// features
