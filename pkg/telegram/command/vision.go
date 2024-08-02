@@ -13,7 +13,7 @@ type ImageGetter interface {
 }
 
 type ImageRecognizer interface {
-	RecognizeImage(chatID int64, base64image, caption string) (string, error)
+	CreateChatCompletion(chatID int64, text, base64image string) (string, error)
 }
 
 type vision struct {
@@ -58,7 +58,7 @@ func (v *vision) Execute(update *tgbotapi.Update) {
 		return
 	}
 
-	response, err := v.recognizer.RecognizeImage(chatID, base64image, caption)
+	response, err := v.recognizer.CreateChatCompletion(chatID, caption, base64image)
 	if err != nil {
 		response = fmt.Sprintf("Failed to recognize image: %v", err)
 	}

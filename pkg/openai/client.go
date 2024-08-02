@@ -70,11 +70,21 @@ func createAvailableFunctions(tools []ToolFunction) toolFunctionMap {
 	return m
 }
 
-func (c *client) CreateChatCompletion(chatID int64, prompt string) (string, error) {
-	session := c.getSession(chatID)
+func (c *client) CreateChatCompletion(chatID int64, text, base64image string) (string, error) {
+	var content any
+	if base64image != "" {
+		content = []domain.Content{
+			{Type: "image_url", ImageUrl: &domain.ImageUrl{Url: "data:image/jpeg;base64," + base64image}},
+		}
+		if text != "" {
+			content = append([]domain.Content{{Type: "text", Text: text}}, content.([]domain.Content)...)
+		}
+	} else {
+		content = text
+	}
 
-	userMessage := domain.ChatMessage{Role: chatMessageRoleUser, Content: prompt}
-	session.Messages = append(session.Messages, userMessage)
+	session := c.getSession(chatID)
+	session.Messages = append(session.Messages, domain.ChatMessage{Role: chatMessageRoleUser, Content: content})
 
 	response, err := c.processChatCompletion(session)
 	if err != nil {

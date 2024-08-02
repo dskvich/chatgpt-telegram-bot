@@ -23,7 +23,7 @@ type SpeechTranscriber interface {
 }
 
 type GptTextResponseGenerator interface {
-	CreateChatCompletion(chatID int64, prompt string) (string, error)
+	CreateChatCompletion(chatID int64, text, base64image string) (string, error)
 }
 
 type GptImageResponseGenerator interface {
@@ -142,7 +142,7 @@ func (v *voice) Execute(update *tgbotapi.Update) {
 		return
 	}
 
-	response, err := v.textGenerator.CreateChatCompletion(update.Message.Chat.ID, prompt)
+	response, err := v.textGenerator.CreateChatCompletion(update.Message.Chat.ID, prompt, "")
 	if err != nil {
 		response = fmt.Sprintf("Failed to get chat completion: %v", err)
 	}

@@ -98,13 +98,12 @@ func setupServices() (service.Group, error) {
 	}
 
 	//TODO rename textGptClient to openAiClient
-	textGptClient, err := openai.NewClient(cfg.OpenAIToken, chatRepository, settingsRepository, tools)
+	openAIClient, err := openai.NewClient(cfg.OpenAIToken, chatRepository, settingsRepository, tools)
 	if err != nil {
 		return nil, fmt.Errorf("creating open ai client: %v", err)
 	}
 	imageGptClient := chatgpt.NewImageClient(cfg.OpenAIToken)
 	audioGptClient := chatgpt.NewAudioClient(cfg.OpenAIToken)
-	visionGptClient := chatgpt.NewVisionClient(cfg.OpenAIToken, chatRepository)
 
 	oggToMp3Converter := converter.OggTomp3{}
 	speechToTextConverter := converter.NewSpeechToText(audioGptClient)
@@ -116,10 +115,10 @@ func setupServices() (service.Group, error) {
 		command.NewCleanChatSession(chatRepository, messagesCh),
 
 		// features
-		command.NewGpt(textGptClient, chatRepository, messagesCh),
-		command.NewVoice(telegramClient, &oggToMp3Converter, speechToTextConverter, textGptClient, imageGptClient, promptRepository, messagesCh),
+		command.NewGpt(openAIClient, chatRepository, messagesCh),
+		command.NewVoice(telegramClient, &oggToMp3Converter, speechToTextConverter, openAIClient, imageGptClient, promptRepository, messagesCh),
 		command.NewDraw(imageGptClient, promptRepository, messagesCh),
-		command.NewVision(telegramClient, visionGptClient, messagesCh),
+		command.NewVision(telegramClient, openAIClient, messagesCh),
 
 		// callbacks
 		command.NewDrawCallback(imageGptClient, promptRepository, messagesCh),
