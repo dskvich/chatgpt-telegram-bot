@@ -95,6 +95,7 @@ func setupServices() (service.Group, error) {
 	tools := []openai.ToolFunction{
 		tools.NewGetChatSettings(settingsRepository),
 		tools.NewSetSystemPrompt(settingsRepository),
+		tools.NewSetModel(settingsRepository),
 	}
 
 	//TODO rename textGptClient to openAiClient

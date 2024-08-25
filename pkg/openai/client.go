@@ -22,7 +22,7 @@ type ChatRepository interface {
 }
 
 type SettingsRepository interface {
-	GetByKey(ctx context.Context, chatID int64, key string) (string, error)
+	GetAll(ctx context.Context, chatID int64) (map[string]string, error)
 }
 
 type toolFunctionMap map[string]any
@@ -86,6 +86,8 @@ func (c *client) CreateChatCompletion(chatID int64, text, base64image string) (s
 	session := c.getSession(chatID)
 	session.Messages = append(session.Messages, domain.ChatMessage{Role: chatMessageRoleUser, Content: content})
 
+	slog.Info("sending chat completion request using model", "chatID", chatID, "text", text, "model", session.ModelName)
+
 	response, err := c.processChatCompletion(session)
 	if err != nil {
 		return "", fmt.Errorf("processing chat completion: %v", err)
@@ -117,15 +119,20 @@ func (c *client) getSession(chatID int64) *domain.ChatSession {
 }
 
 func (c *client) createNewSession(chatID int64) *domain.ChatSession {
-	systemPrompt, err := c.settingsRepo.GetByKey(context.TODO(), chatID, domain.SystemPromptKey)
+	settings, err := c.settingsRepo.GetAll(context.TODO(), chatID)
 	if err != nil {
-		slog.Error("fetching system prompt", "chatID", chatID, logger.Err(err))
+		slog.Error("fetching system settings", "chatID", chatID, logger.Err(err))
+	}
+
+	model, found := settings[domain.ModelKey]
+	if !found {
+		model = domain.DefaultModel
 	}
 
 	return &domain.ChatSession{
-		ModelName: "gpt-4o-mini",
+		ModelName: model,
 		Messages: []domain.ChatMessage{
-			{Role: chatMessageRoleSystem, Content: systemPrompt},
+			{Role: chatMessageRoleSystem, Content: settings[domain.SystemPromptKey]},
 		},
 	}
 }
@@ -209,10 +216,23 @@ func (c *client) callTool(chatID int64, toolCall domain.ToolCall) (string, error
 	// The first argument is always chatID
 	args := []reflect.Value{reflect.ValueOf(chatID)}
 
+	// Parse the toolCall.Function.Arguments assuming it is a JSON string
+	var argumentMap map[string]interface{}
+	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &argumentMap); err != nil {
+		return "", fmt.Errorf("failed to parse arguments: %v", err)
+	}
+
+	// Check that there is exactly one key in the map
+	if len(argumentMap) != 1 {
+		return "", fmt.Errorf("expected exactly one argument, but got %d", len(argumentMap))
+	}
+
 	// If the function has two parameters, add the second one from toolCall.Function.Arguments
 	if fnType.NumIn() == 2 {
-		// Assuming the second parameter is of type string and is passed in toolCall.Function.Arguments
-		args = append(args, reflect.ValueOf(toolCall.Function.Arguments))
+		for _, argValue := range argumentMap {
+			args = append(args, reflect.ValueOf(argValue))
+			break // Only use the first value found in the JSON map
+		}
 	}
 
 	// Call the function dynamically

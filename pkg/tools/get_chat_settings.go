@@ -10,17 +10,13 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 )
 
-type ChatSettingsRepository interface {
-	GetAll(ctx context.Context, chatID int64) (map[string]string, error)
-}
-
 type getChatSettings struct {
-	settingsRepo ChatSettingsRepository
+	repo ReadSettingsRepository
 }
 
-func NewGetChatSettings(settingsRepo ChatSettingsRepository) *getChatSettings {
+func NewGetChatSettings(repo ReadSettingsRepository) *getChatSettings {
 	return &getChatSettings{
-		settingsRepo: settingsRepo,
+		repo: repo,
 	}
 }
 
@@ -40,7 +36,7 @@ func (g *getChatSettings) Parameters() jsonschema.Definition {
 
 func (g *getChatSettings) Function() any {
 	return func(chatID int64) (string, error) {
-		settings, err := g.settingsRepo.GetAll(context.Background(), chatID)
+		settings, err := g.repo.GetAll(context.Background(), chatID)
 		if err != nil {
 			slog.Error("failed to get chat settings", "chatId", chatID, logger.Err(err))
 		}

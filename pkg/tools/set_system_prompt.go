@@ -9,17 +9,13 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
-type EditSettingsRepository interface {
-	Save(ctx context.Context, chatID int64, key, value string) error
-}
-
 type setSystemPrompt struct {
-	settingsRepo EditSettingsRepository
+	repo EditSettingsRepository
 }
 
-func NewSetSystemPrompt(settingsRepo EditSettingsRepository) *setSystemPrompt {
+func NewSetSystemPrompt(repo EditSettingsRepository) *setSystemPrompt {
 	return &setSystemPrompt{
-		settingsRepo: settingsRepo,
+		repo: repo,
 	}
 }
 
@@ -47,9 +43,9 @@ func (s *setSystemPrompt) Parameters() jsonschema.Definition {
 
 func (s *setSystemPrompt) Function() any {
 	return func(chatID int64, prompt string) (string, error) {
-		if err := s.settingsRepo.Save(context.Background(), chatID, domain.SystemPromptKey, prompt); err != nil {
-			return "", fmt.Errorf("saving syetm prompt: %v", err)
+		if err := s.repo.Save(context.Background(), chatID, domain.SystemPromptKey, prompt); err != nil {
+			return "", fmt.Errorf("saving system prompt: %v", err)
 		}
-		return "Новые системные настройки сохранены", nil
+		return "Системная инструкция сохранена", nil
 	}
 }
