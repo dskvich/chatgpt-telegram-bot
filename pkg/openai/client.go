@@ -123,7 +123,7 @@ func (c *client) createNewSession(chatID int64) *domain.ChatSession {
 	}
 
 	return &domain.ChatSession{
-		ModelName: "gpt-4o",
+		ModelName: "gpt-4o-mini",
 		Messages: []domain.ChatMessage{
 			{Role: chatMessageRoleSystem, Content: systemPrompt},
 		},
