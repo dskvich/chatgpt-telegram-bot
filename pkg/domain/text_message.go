@@ -18,6 +18,7 @@ func (t *TextMessage) ToChatMessage() tgbotapi.Chattable {
 	msg := tgbotapi.NewMessage(t.ChatID, htmlOutput)
 	msg.ReplyToMessageID = t.ReplyToMessageID
 	msg.ParseMode = tgbotapi.ModeHTML
+	msg.DisableWebPagePreview = true
 
 	return msg
 }
