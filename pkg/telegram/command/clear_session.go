@@ -12,36 +12,36 @@ type MessagesRemover interface {
 	RemoveSession(chatID int64)
 }
 
-type cleanChatSession struct {
+type clearSession struct {
 	remover MessagesRemover
 	outCh   chan<- domain.Message
 }
 
-func NewCleanChatSession(
+func NewClearSession(
 	remover MessagesRemover,
 	outCh chan<- domain.Message,
-) *cleanChatSession {
-	return &cleanChatSession{
+) *clearSession {
+	return &clearSession{
 		remover: remover,
 		outCh:   outCh,
 	}
 }
 
-func (c *cleanChatSession) CanExecute(update *tgbotapi.Update) bool {
+func (c *clearSession) CanExecute(update *tgbotapi.Update) bool {
 	if update.Message == nil {
 		return false
 	}
 
 	text := strings.ToLower(update.Message.Text)
 
-	if strings.HasPrefix(text, "/new_chat") {
+	if strings.HasPrefix(text, "/new") {
 		return true
 	}
 
 	return false
 }
 
-func (c *cleanChatSession) Execute(update *tgbotapi.Update) {
+func (c *clearSession) Execute(update *tgbotapi.Update) {
 	c.remover.RemoveSession(update.Message.Chat.ID)
 
 	c.outCh <- &domain.TextMessage{

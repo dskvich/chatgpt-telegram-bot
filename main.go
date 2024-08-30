@@ -113,7 +113,7 @@ func setupServices() (service.Group, error) {
 	commands := []telegram.Command{
 		// non ai commands
 		command.NewInfo(messagesCh),
-		command.NewCleanChatSession(chatRepository, messagesCh),
+		command.NewClearSession(chatRepository, messagesCh),
 
 		// features
 		command.NewGpt(openAIClient, chatRepository, messagesCh),
