@@ -49,6 +49,10 @@ func (g *gpt) CanExecute(update *tgbotapi.Update) bool {
 }
 
 func (g *gpt) Execute(update *tgbotapi.Update) {
+	g.outCh <- &domain.TypingMessage{
+		ChatID: update.Message.Chat.ID,
+	}
+
 	response, err := g.gptProvider.CreateChatCompletion(update.Message.Chat.ID, update.Message.Text, "")
 	if err != nil {
 		response = fmt.Sprintf("Failed to get chat completion: %v", err)
