@@ -57,6 +57,10 @@ func (s *setChatTTLCallback) Execute(update *tgbotapi.Update) {
 
 	s.ttlSetter.SetTTL(chatID, ttl)
 
+	s.outCh <- &domain.CallbackMessage{
+		ID: update.CallbackQuery.ID,
+	}
+
 	s.outCh <- &domain.TextMessage{
 		ChatID:           chatID,
 		ReplyToMessageID: messageID,
