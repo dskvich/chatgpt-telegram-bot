@@ -9,14 +9,14 @@ import (
 )
 
 type setChatTTL struct {
-	outCh chan<- domain.Message
+	client TelegramClient
 }
 
 func NewSetChatTTL(
-	outCh chan<- domain.Message,
+	client TelegramClient,
 ) *setChatTTL {
 	return &setChatTTL{
-		outCh: outCh,
+		client: client,
 	}
 }
 
@@ -35,8 +35,8 @@ func (s *setChatTTL) CanExecute(update *tgbotapi.Update) bool {
 }
 
 func (s *setChatTTL) Execute(update *tgbotapi.Update) {
-	s.outCh <- &domain.TTLMessage{
+	s.client.SendTTLMessage(domain.TTLMessage{
 		ChatID:           update.Message.Chat.ID,
 		ReplyToMessageID: update.Message.MessageID,
-	}
+	})
 }

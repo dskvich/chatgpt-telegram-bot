@@ -15,12 +15,10 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/chatgpt"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/converter"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/database"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/openai"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/repository"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/service"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/service/messaging"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram/command"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/tools"
@@ -110,27 +108,26 @@ func setupServices() (service.Group, error) {
 	oggToMp3Converter := converter.OggTomp3{}
 	speechToTextConverter := converter.NewSpeechToText(audioGptClient)
 
-	messagesCh := make(chan domain.Message)
 	commands := []telegram.Command{
 		// non ai commands
-		command.NewInfo(messagesCh),
-		command.NewClearChatHistory(chatRepository, messagesCh),
-		command.NewSetChatTTL(messagesCh),
+		command.NewInfo(telegramClient),
+		command.NewClearChatHistory(chatRepository, telegramClient),
+		command.NewSetChatTTL(telegramClient),
 
 		// features
-		command.NewGpt(openAIClient, chatRepository, messagesCh),
-		command.NewVoice(telegramClient, &oggToMp3Converter, speechToTextConverter, openAIClient, imageGptClient, promptRepository, messagesCh),
-		command.NewDraw(imageGptClient, promptRepository, messagesCh),
-		command.NewVision(telegramClient, openAIClient, messagesCh),
+		command.NewGpt(openAIClient, chatRepository, telegramClient),
+		command.NewVoice(telegramClient, &oggToMp3Converter, speechToTextConverter, openAIClient, imageGptClient, promptRepository, telegramClient),
+		command.NewDraw(imageGptClient, promptRepository, telegramClient),
+		command.NewVision(telegramClient, openAIClient, telegramClient),
 
 		// callbacks
-		command.NewDrawCallback(imageGptClient, promptRepository, messagesCh),
-		command.NewSetChatTTLCallback(chatRepository, messagesCh),
+		command.NewDrawCallback(imageGptClient, promptRepository, telegramClient),
+		command.NewSetChatTTLCallback(chatRepository, telegramClient),
 	}
 
 	commandHandler := telegram.NewCommandHandler(commands)
 
-	if svc, err = messaging.NewService(telegramClient, authenticator, commandHandler, messagesCh); err == nil {
+	if svc, err = service.NewTelegramListener(telegramClient, authenticator, commandHandler); err == nil {
 		svcGroup = append(svcGroup, svc)
 	} else {
 		return nil, err

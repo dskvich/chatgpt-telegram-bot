@@ -21,23 +21,23 @@ type PromptFetcher interface {
 type drawCallback struct {
 	provider DalleCallbackProvider
 	fetcher  PromptFetcher
-	outCh    chan<- domain.Message
+	client   TelegramClient
 }
 
 func NewDrawCallback(
 	provider DalleCallbackProvider,
 	fetcher PromptFetcher,
-	outCh chan<- domain.Message,
+	client TelegramClient,
 ) *drawCallback {
 	return &drawCallback{
 		provider: provider,
 		fetcher:  fetcher,
-		outCh:    outCh,
+		client:   client,
 	}
 }
 
 func (d *drawCallback) CanExecute(update *tgbotapi.Update) bool {
-	return update.CallbackQuery != nil && strings.HasPrefix(update.CallbackQuery.Data, domain.DrawCallback)
+	return update.CallbackQuery != nil && strings.HasPrefix(update.CallbackQuery.Data, domain.RedrawCallback)
 }
 
 func (d *drawCallback) Execute(update *tgbotapi.Update) {
@@ -46,40 +46,40 @@ func (d *drawCallback) Execute(update *tgbotapi.Update) {
 
 	prompt, err := d.fetcher.FetchPrompt(context.Background(), chatID, messageID)
 	if err != nil {
-		d.outCh <- &domain.TextMessage{
+		d.client.SendTextMessage(domain.TextMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
-			Content:          fmt.Sprintf("Failed to fetch prompt for message: %v", err),
-		}
+			Text:             fmt.Sprintf("Failed to fetch prompt for message: %v", err),
+		})
 		return
 	}
 
 	if prompt == nil {
-		d.outCh <- &domain.TextMessage{
+		d.client.SendTextMessage(domain.TextMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
-			Content:          "Упс! Я не могу найти исходный запрос для генерации похожего изображения. Пожалуйста, повторите ваш запрос.",
-		}
+			Text:             "Упс! Я не могу найти исходный запрос для генерации похожего изображения. Пожалуйста, повторите ваш запрос.",
+		})
 		return
 	}
 
 	imgBytes, err := d.provider.GenerateImage(prompt.Text)
 	if err != nil {
-		d.outCh <- &domain.TextMessage{
+		d.client.SendTextMessage(domain.TextMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
-			Content:          fmt.Sprintf("Failed to generate image using Dall-E: %v", err),
-		}
+			Text:             fmt.Sprintf("Failed to generate image using Dall-E: %v", err),
+		})
 		return
 	}
 
-	d.outCh <- &domain.CallbackMessage{
-		ID: update.CallbackQuery.ID,
-	}
+	d.client.SendCallbackMessage(domain.CallbackMessage{
+		CallbackQueryID: update.CallbackQuery.ID,
+	})
 
-	d.outCh <- &domain.ImageMessage{
+	d.client.SendImageMessage(domain.ImageMessage{
 		ChatID:           chatID,
 		ReplyToMessageID: messageID,
-		Content:          imgBytes,
-	}
+		Bytes:            imgBytes,
+	})
 }

@@ -41,7 +41,7 @@ type voice struct {
 	textGenerator  GptTextResponseGenerator
 	imageGenerator GptImageResponseGenerator
 	saver          VoicePromptSaver
-	outCh          chan<- domain.Message
+	client         TelegramClient
 }
 
 func NewVoice(
@@ -51,7 +51,7 @@ func NewVoice(
 	textGenerator GptTextResponseGenerator,
 	imageGenerator GptImageResponseGenerator,
 	saver VoicePromptSaver,
-	outCh chan<- domain.Message,
+	client TelegramClient,
 ) *voice {
 	return &voice{
 		downloader:     downloader,
@@ -60,7 +60,7 @@ func NewVoice(
 		textGenerator:  textGenerator,
 		imageGenerator: imageGenerator,
 		saver:          saver,
-		outCh:          outCh,
+		client:         client,
 	}
 }
 
@@ -74,39 +74,39 @@ func (v *voice) Execute(update *tgbotapi.Update) {
 
 	filePath, err := v.downloader.DownloadFile(update.Message.Voice.FileID)
 	if err != nil {
-		v.outCh <- &domain.TextMessage{
+		v.client.SendTextMessage(domain.TextMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
-			Content:          fmt.Sprintf("Failed to download audio file: %v", err),
-		}
+			Text:             fmt.Sprintf("Failed to download audio file: %v", err),
+		})
 		return
 	}
 
 	mp3FilePath, err := v.converter.ConvertToMP3(filePath)
 	if err != nil {
-		v.outCh <- &domain.TextMessage{
+		v.client.SendTextMessage(domain.TextMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
-			Content:          fmt.Sprintf("Failed to convert audio file: %v", err),
-		}
+			Text:             fmt.Sprintf("Failed to convert audio file: %v", err),
+		})
 		return
 	}
 
 	prompt, err := v.transcriber.SpeechToText(mp3FilePath)
 	if err != nil {
-		v.outCh <- &domain.TextMessage{
+		v.client.SendTextMessage(domain.TextMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
-			Content:          fmt.Sprintf("Failed to transcribe audio file: %v", err),
-		}
+			Text:             fmt.Sprintf("Failed to transcribe audio file: %v", err),
+		})
 		return
 	}
 
-	v.outCh <- &domain.TextMessage{
+	v.client.SendTextMessage(domain.TextMessage{
 		ChatID:           chatID,
 		ReplyToMessageID: messageID,
-		Content:          fmt.Sprintf("🎤 %s", prompt),
-	}
+		Text:             fmt.Sprintf("🎤 %s", prompt),
+	})
 
 	if err := v.saver.Save(context.Background(), &domain.Prompt{
 		ChatID:    chatID,
@@ -114,11 +114,11 @@ func (v *voice) Execute(update *tgbotapi.Update) {
 		Text:      prompt,
 		FromUser:  fmt.Sprintf("%s %s", update.Message.From.FirstName, update.Message.From.LastName),
 	}); err != nil {
-		v.outCh <- &domain.TextMessage{
+		v.client.SendTextMessage(domain.TextMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
-			Content:          fmt.Sprintf("Failed to save prompt: %v", err),
-		}
+			Text:             fmt.Sprintf("Failed to save prompt: %v", err),
+		})
 	}
 
 	if strings.Contains(strings.ToLower(prompt), "рисуй") {
@@ -126,19 +126,19 @@ func (v *voice) Execute(update *tgbotapi.Update) {
 
 		imgBytes, err := v.imageGenerator.GenerateImage(processedPrompt)
 		if err != nil {
-			v.outCh <- &domain.TextMessage{
+			v.client.SendTextMessage(domain.TextMessage{
 				ChatID:           chatID,
 				ReplyToMessageID: messageID,
-				Content:          fmt.Sprintf("Failed to generate image using Dall-E: %v", err),
-			}
+				Text:             fmt.Sprintf("Failed to generate image using Dall-E: %v", err),
+			})
 			return
 		}
 
-		v.outCh <- &domain.ImageMessage{
+		v.client.SendImageMessage(domain.ImageMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
-			Content:          imgBytes,
-		}
+			Bytes:            imgBytes,
+		})
 		return
 	}
 
@@ -147,11 +147,11 @@ func (v *voice) Execute(update *tgbotapi.Update) {
 		response = fmt.Sprintf("Failed to get chat completion: %v", err)
 	}
 
-	v.outCh <- &domain.TextMessage{
+	v.client.SendTextMessage(domain.TextMessage{
 		ChatID:           chatID,
 		ReplyToMessageID: messageID,
-		Content:          response,
-	}
+		Text:             response,
+	})
 }
 
 func removeWordContaining(text string, target string) string {

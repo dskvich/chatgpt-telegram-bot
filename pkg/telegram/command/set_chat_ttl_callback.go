@@ -15,16 +15,16 @@ type ChatTTLSetter interface {
 
 type setChatTTLCallback struct {
 	ttlSetter ChatTTLSetter
-	outCh     chan<- domain.Message
+	client    TelegramClient
 }
 
 func NewSetChatTTLCallback(
 	ttlSetter ChatTTLSetter,
-	outCh chan<- domain.Message,
+	client TelegramClient,
 ) *setChatTTLCallback {
 	return &setChatTTLCallback{
 		ttlSetter: ttlSetter,
-		outCh:     outCh,
+		client:    client,
 	}
 }
 
@@ -47,23 +47,23 @@ func (s *setChatTTLCallback) Execute(update *tgbotapi.Update) {
 		ttl = 8 * time.Hour
 	case "ttl_disabled":
 	default:
-		s.outCh <- &domain.TextMessage{
+		s.client.SendTextMessage(domain.TextMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
-			Content:          "Unknown ttl option selected.",
-		}
+			Text:             "Unknown ttl option selected.",
+		})
 		return
 	}
 
 	s.ttlSetter.SetTTL(chatID, ttl)
 
-	s.outCh <- &domain.CallbackMessage{
-		ID: update.CallbackQuery.ID,
-	}
+	s.client.SendCallbackMessage(domain.CallbackMessage{
+		CallbackQueryID: update.CallbackQuery.ID,
+	})
 
-	s.outCh <- &domain.TextMessage{
+	s.client.SendTextMessage(domain.TextMessage{
 		ChatID:           chatID,
 		ReplyToMessageID: messageID,
-		Content:          fmt.Sprintf("Set TTL to %v", ttl),
-	}
+		Text:             fmt.Sprintf("Set TTL to %v", ttl),
+	})
 }

@@ -19,18 +19,18 @@ type ImageRecognizer interface {
 type vision struct {
 	getter     ImageGetter
 	recognizer ImageRecognizer
-	outCh      chan<- domain.Message
+	client     TelegramClient
 }
 
 func NewVision(
 	getter ImageGetter,
 	imageRecognizer ImageRecognizer,
-	outCh chan<- domain.Message,
+	client TelegramClient,
 ) *vision {
 	return &vision{
 		getter:     getter,
 		recognizer: imageRecognizer,
-		outCh:      outCh,
+		client:     client,
 	}
 }
 
@@ -50,11 +50,11 @@ func (v *vision) Execute(update *tgbotapi.Update) {
 
 	base64image, err := v.getter.GetFile(photo.FileID)
 	if err != nil {
-		v.outCh <- &domain.TextMessage{
+		v.client.SendTextMessage(domain.TextMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
-			Content:          fmt.Sprintf("Failed to get image: %v", err),
-		}
+			Text:             fmt.Sprintf("Failed to get image: %v", err),
+		})
 		return
 	}
 
@@ -63,9 +63,9 @@ func (v *vision) Execute(update *tgbotapi.Update) {
 		response = fmt.Sprintf("Failed to recognize image: %v", err)
 	}
 
-	v.outCh <- &domain.TextMessage{
+	v.client.SendTextMessage(domain.TextMessage{
 		ChatID:           chatID,
 		ReplyToMessageID: messageID,
-		Content:          response,
-	}
+		Text:             response,
+	})
 }

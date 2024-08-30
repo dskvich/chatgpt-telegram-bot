@@ -23,18 +23,18 @@ type TextPromptSaver interface {
 type draw struct {
 	provider DalleProvider
 	saver    TextPromptSaver
-	outCh    chan<- domain.Message
+	client   TelegramClient
 }
 
 func NewDraw(
 	provider DalleProvider,
 	saver TextPromptSaver,
-	outCh chan<- domain.Message,
+	client TelegramClient,
 ) *draw {
 	return &draw{
 		provider: provider,
 		saver:    saver,
-		outCh:    outCh,
+		client:   client,
 	}
 }
 
@@ -68,28 +68,28 @@ func (d *draw) Execute(update *tgbotapi.Update) {
 		Text:      prompt,
 		FromUser:  fmt.Sprintf("%s %s", update.Message.From.FirstName, update.Message.From.LastName),
 	}); err != nil {
-		d.outCh <- &domain.TextMessage{
+		d.client.SendTextMessage(domain.TextMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
-			Content:          fmt.Sprintf("Failed to save prompt: %v", err),
-		}
+			Text:             fmt.Sprintf("Failed to save prompt: %v", err),
+		})
 	}
 
 	imgBytes, err := d.provider.GenerateImage(prompt)
 	if err != nil {
-		d.outCh <- &domain.TextMessage{
+		d.client.SendTextMessage(domain.TextMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
-			Content:          fmt.Sprintf("Failed to generate image using Dall-E: %v", err),
-		}
+			Text:             fmt.Sprintf("Failed to generate image using Dall-E: %v", err),
+		})
 		return
 	}
 
-	d.outCh <- &domain.ImageMessage{
+	d.client.SendImageMessage(domain.ImageMessage{
 		ChatID:           chatID,
 		ReplyToMessageID: messageID,
-		Content:          imgBytes,
-	}
+		Bytes:            imgBytes,
+	})
 }
 
 func (d *draw) extractAfterSubstrings(s string, substrings []string) string {

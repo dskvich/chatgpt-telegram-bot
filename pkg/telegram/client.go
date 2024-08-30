@@ -8,11 +8,20 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strings"
+	"unicode/utf8"
 
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/render"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
+)
+
+const (
+	maxRunes = 4096
+
+	responseDeliveryFailedMessage = "Не удалось доставить ответ"
 )
 
 type client struct {
@@ -43,31 +52,98 @@ func (c *client) GetUpdates() tgbotapi.UpdatesChannel {
 	return c.updatesCh
 }
 
-func (c *client) Send(message domain.Message) error {
-	chatMessage := message.ToChatMessage()
-	if _, err := c.bot.Send(chatMessage); err != nil {
-		return c.handleError(chatMessage, err)
+func (c *client) SendTextMessage(msg domain.TextMessage) {
+	// convert to HTML
+	text := render.ToHTML(msg.Text)
+
+	// check the rune count, telegram is limited to 4096 chars per message
+	msgRuneCount := utf8.RuneCountInString(text)
+
+	for msgRuneCount > maxRunes {
+		stop := maxRunes
+
+		// Find the last <pre> tag or newline before the stop index
+		lastPreTag := strings.LastIndex(text[:stop], "<pre>")
+		lastNewline := strings.LastIndex(text[:stop], "\n")
+
+		// Choose the appropriate stop point
+		if lastPreTag != -1 && lastPreTag < stop {
+			stop = lastPreTag
+		} else if lastNewline != -1 && lastNewline < stop {
+			stop = lastNewline
+		}
+
+		// Send the current chunk
+		c.send(msg.ChatID, msg.ReplyToMessageID, text[:stop])
+
+		text = text[stop:]
+		msgRuneCount = utf8.RuneCountInString(text)
 	}
-	return nil
+
+	c.send(msg.ChatID, msg.ReplyToMessageID, text)
 }
 
-func (c *client) handleError(chatMessage tgbotapi.Chattable, err error) error {
-	messageConfig, ok := chatMessage.(tgbotapi.MessageConfig)
-	if !ok {
-		slog.Error("type assertion failed", "expectedType", "tgbotapi.MessageConfig", "actualType", fmt.Sprintf("%T", chatMessage))
-		return fmt.Errorf("unexpected type %T for chatMessage", chatMessage)
-	}
+func (c *client) send(chatID int64, replyToMessageID int, text string) {
+	m := tgbotapi.NewMessage(chatID, text)
+	m.ReplyToMessageID = replyToMessageID
+	m.ParseMode = tgbotapi.ModeHTML
+	m.DisableWebPagePreview = true
 
-	errorMessage := domain.TextMessage{
-		ChatID:           messageConfig.ChatID,
-		ReplyToMessageID: messageConfig.ReplyToMessageID,
-		Content:          "Не удалось доставить ответ",
+	if _, err := c.bot.Send(m); err != nil {
+		c.handleError(chatID, replyToMessageID, err)
 	}
-	if _, err := c.bot.Send(errorMessage.ToChatMessage()); err != nil {
-		return fmt.Errorf("sending failure notification: %v", err)
-	}
+}
 
-	return fmt.Errorf("sending message: %v", err)
+func (c *client) SendImageMessage(msg domain.ImageMessage) {
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Еще", domain.RedrawCallback),
+		),
+	)
+
+	m := tgbotapi.NewPhoto(msg.ChatID, tgbotapi.FileBytes{Bytes: msg.Bytes})
+	m.ReplyToMessageID = msg.ReplyToMessageID
+	m.ReplyMarkup = keyboard
+
+	if _, err := c.bot.Send(m); err != nil {
+		c.handleError(msg.ChatID, msg.ReplyToMessageID, err)
+	}
+}
+
+func (c *client) SendTTLMessage(msg domain.TTLMessage) {
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("15min", "ttl_15m"),
+			tgbotapi.NewInlineKeyboardButtonData("1h", "ttl_1h"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("8h", "ttl_8h"),
+			tgbotapi.NewInlineKeyboardButtonData("Disabled", "ttl_disabled"),
+		),
+	)
+
+	m := tgbotapi.NewMessage(msg.ChatID, "Select TTL option:")
+	m.ReplyToMessageID = msg.ReplyToMessageID
+	m.ReplyMarkup = keyboard
+
+	if _, err := c.bot.Send(m); err != nil {
+		c.handleError(msg.ChatID, msg.ReplyToMessageID, err)
+	}
+}
+
+func (c *client) SendCallbackMessage(msg domain.CallbackMessage) {
+	m := tgbotapi.NewCallback(msg.CallbackQueryID, "")
+
+	_, _ = c.bot.Send(m)
+}
+
+func (c *client) handleError(chatID int64, replyToMessageID int, err error) {
+	slog.Error("sending message error", "chatID", chatID, "replyToMessageID", replyToMessageID, logger.Err(err))
+
+	m := tgbotapi.NewMessage(chatID, responseDeliveryFailedMessage)
+	m.ReplyToMessageID = replyToMessageID
+
+	_, _ = c.bot.Send(m)
 }
 func (c *client) DownloadFile(fileID string) (string, error) {
 	file, err := c.bot.GetFile(tgbotapi.FileConfig{FileID: fileID})

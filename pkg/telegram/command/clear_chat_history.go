@@ -14,16 +14,16 @@ type MessagesRemover interface {
 
 type clearChatHistory struct {
 	remover MessagesRemover
-	outCh   chan<- domain.Message
+	client  TelegramClient
 }
 
 func NewClearChatHistory(
 	remover MessagesRemover,
-	outCh chan<- domain.Message,
+	client TelegramClient,
 ) *clearChatHistory {
 	return &clearChatHistory{
 		remover: remover,
-		outCh:   outCh,
+		client:  client,
 	}
 }
 
@@ -44,9 +44,9 @@ func (c *clearChatHistory) CanExecute(update *tgbotapi.Update) bool {
 func (c *clearChatHistory) Execute(update *tgbotapi.Update) {
 	c.remover.RemoveSession(update.Message.Chat.ID)
 
-	c.outCh <- &domain.TextMessage{
+	c.client.SendTextMessage(domain.TextMessage{
 		ChatID:           update.Message.Chat.ID,
 		ReplyToMessageID: update.Message.MessageID,
-		Content:          "История очищена. Начните новый чат.",
-	}
+		Text:             "История очищена. Начните новый чат.",
+	})
 }

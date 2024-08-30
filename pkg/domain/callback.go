@@ -1,9 +1,6 @@
 package domain
 
-type Callback string
-
 const (
-	DrawCallback       = "draw"
+	RedrawCallback     = "redraw"
 	SetChatTTLCallback = "ttl_"
-	SettingsCallback   = "edit_settings"
 )

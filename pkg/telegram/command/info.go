@@ -9,14 +9,14 @@ import (
 )
 
 type info struct {
-	outCh chan<- domain.Message
+	client TelegramClient
 }
 
 func NewInfo(
-	outCh chan<- domain.Message,
+	client TelegramClient,
 ) *info {
 	return &info{
-		outCh: outCh,
+		client: client,
 	}
 }
 
@@ -30,9 +30,9 @@ func (_ *info) CanExecute(update *tgbotapi.Update) bool {
 }
 
 func (i *info) Execute(update *tgbotapi.Update) {
-	i.outCh <- &domain.TextMessage{
+	i.client.SendTextMessage(domain.TextMessage{
 		ChatID:           update.Message.Chat.ID,
 		ReplyToMessageID: update.Message.MessageID,
-		Content:          domain.WelcomeMessage,
-	}
+		Text:             domain.WelcomeMessage,
+	})
 }

@@ -9,6 +9,8 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
+const maxRunes = 4096
+
 type GptProvider interface {
 	CreateChatCompletion(chatID int64, text, base64image string) (string, error)
 }
@@ -20,18 +22,18 @@ type ActiveChatRepository interface {
 type gpt struct {
 	gptProvider    GptProvider
 	chatRepository ActiveChatRepository
-	outCh          chan<- domain.Message
+	client         TelegramClient
 }
 
 func NewGpt(
 	gptProvider GptProvider,
 	chatRepository ActiveChatRepository,
-	outCh chan<- domain.Message,
+	client TelegramClient,
 ) *gpt {
 	return &gpt{
 		gptProvider:    gptProvider,
 		chatRepository: chatRepository,
-		outCh:          outCh,
+		client:         client,
 	}
 }
 
@@ -49,18 +51,17 @@ func (g *gpt) CanExecute(update *tgbotapi.Update) bool {
 }
 
 func (g *gpt) Execute(update *tgbotapi.Update) {
-	g.outCh <- &domain.TypingMessage{
-		ChatID: update.Message.Chat.ID,
-	}
+	chatID := update.Message.Chat.ID
+	messageID := update.Message.MessageID
 
-	response, err := g.gptProvider.CreateChatCompletion(update.Message.Chat.ID, update.Message.Text, "")
+	response, err := g.gptProvider.CreateChatCompletion(chatID, update.Message.Text, "")
 	if err != nil {
 		response = fmt.Sprintf("Failed to get chat completion: %v", err)
 	}
 
-	g.outCh <- &domain.TextMessage{
-		ChatID:           update.Message.Chat.ID,
-		ReplyToMessageID: update.Message.MessageID,
-		Content:          response,
-	}
+	g.client.SendTextMessage(domain.TextMessage{
+		ChatID:           chatID,
+		ReplyToMessageID: messageID,
+		Text:             response,
+	})
 }
