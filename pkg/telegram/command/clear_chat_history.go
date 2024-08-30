@@ -12,22 +12,22 @@ type MessagesRemover interface {
 	RemoveSession(chatID int64)
 }
 
-type clearSession struct {
+type clearChatHistory struct {
 	remover MessagesRemover
 	outCh   chan<- domain.Message
 }
 
-func NewClearSession(
+func NewClearChatHistory(
 	remover MessagesRemover,
 	outCh chan<- domain.Message,
-) *clearSession {
-	return &clearSession{
+) *clearChatHistory {
+	return &clearChatHistory{
 		remover: remover,
 		outCh:   outCh,
 	}
 }
 
-func (c *clearSession) CanExecute(update *tgbotapi.Update) bool {
+func (c *clearChatHistory) CanExecute(update *tgbotapi.Update) bool {
 	if update.Message == nil {
 		return false
 	}
@@ -41,7 +41,7 @@ func (c *clearSession) CanExecute(update *tgbotapi.Update) bool {
 	return false
 }
 
-func (c *clearSession) Execute(update *tgbotapi.Update) {
+func (c *clearChatHistory) Execute(update *tgbotapi.Update) {
 	c.remover.RemoveSession(update.Message.Chat.ID)
 
 	c.outCh <- &domain.TextMessage{
