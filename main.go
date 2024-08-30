@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/caarlos0/env/v9"
 
@@ -87,7 +88,7 @@ func setupServices() (service.Group, error) {
 		return nil, fmt.Errorf("creating db: %v", err)
 	}
 
-	chatRepository := repository.NewChatRepository()
+	chatRepository := repository.NewChatRepository(15 * time.Minute)
 	promptRepository := repository.NewPromptRepository(db)
 	settingsRepository := repository.NewSettingsRepository(db)
 
@@ -114,6 +115,7 @@ func setupServices() (service.Group, error) {
 		// non ai commands
 		command.NewInfo(messagesCh),
 		command.NewClearChatHistory(chatRepository, messagesCh),
+		command.NewSetChatTTL(messagesCh),
 
 		// features
 		command.NewGpt(openAIClient, chatRepository, messagesCh),
@@ -123,6 +125,7 @@ func setupServices() (service.Group, error) {
 
 		// callbacks
 		command.NewDrawCallback(imageGptClient, promptRepository, messagesCh),
+		command.NewSetChatTTLCallback(chatRepository, messagesCh),
 	}
 
 	commandHandler := telegram.NewCommandHandler(commands)

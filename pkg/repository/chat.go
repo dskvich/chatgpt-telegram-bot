@@ -13,25 +13,40 @@ type sessionEntry struct {
 }
 
 type chatRepository struct {
-	mu       sync.RWMutex
-	sessions map[int64]sessionEntry
-	ttl      time.Duration
+	mu         sync.RWMutex
+	sessions   map[int64]sessionEntry
+	chatTTL    map[int64]time.Duration
+	defaultTTL time.Duration
 }
 
-func NewChatRepository() *chatRepository {
+func NewChatRepository(defaultTTL time.Duration) *chatRepository {
 	return &chatRepository{
-		sessions: make(map[int64]sessionEntry),
-		ttl:      15 * time.Minute,
+		sessions:   make(map[int64]sessionEntry),
+		chatTTL:    make(map[int64]time.Duration),
+		defaultTTL: defaultTTL,
 	}
+}
+
+func (c *chatRepository) SetTTL(chatID int64, ttl time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.chatTTL[chatID] = ttl
 }
 
 func (c *chatRepository) SaveSession(chatID int64, session domain.ChatSession) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Get chat TTL
+	ttl := c.defaultTTL
+	if chatTTL, ok := c.chatTTL[chatID]; ok {
+		ttl = chatTTL
+	}
+
 	// Clean up expired session before saving a new one
 	if entry, ok := c.sessions[chatID]; ok {
-		if time.Since(entry.lastUpdate) > c.ttl {
+		if ttl > 0 && time.Since(entry.lastUpdate) > ttl {
 			delete(c.sessions, chatID)
 		}
 	}
@@ -44,10 +59,20 @@ func (c *chatRepository) SaveSession(chatID int64, session domain.ChatSession) {
 
 func (c *chatRepository) GetSession(chatID int64) (domain.ChatSession, bool) {
 	c.mu.RLock()
-	entry, ok := c.sessions[chatID]
-	c.mu.RUnlock()
+	defer c.mu.RUnlock()
 
-	if !ok || time.Since(entry.lastUpdate) > c.ttl {
+	// Get chat TTL
+	ttl := c.defaultTTL
+	if chatTTL, ok := c.chatTTL[chatID]; ok {
+		ttl = chatTTL
+	}
+
+	entry, ok := c.sessions[chatID]
+	if !ok {
+		return domain.ChatSession{}, false
+	}
+
+	if ttl > 0 && time.Since(entry.lastUpdate) > ttl {
 		return domain.ChatSession{}, false
 	}
 

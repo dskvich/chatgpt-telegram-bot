@@ -86,7 +86,12 @@ func (c *client) CreateChatCompletion(chatID int64, text, base64image string) (s
 	session := c.getSession(chatID)
 	session.Messages = append(session.Messages, domain.ChatMessage{Role: chatMessageRoleUser, Content: content})
 
-	slog.Info("sending chat completion request using model", "chatID", chatID, "text", text, "model", session.ModelName)
+	slog.Info("sending chat completion request using model",
+		"chatID", chatID,
+		"text", text,
+		"model", session.ModelName,
+		"messages in chain", len(session.Messages),
+	)
 
 	response, err := c.processChatCompletion(session)
 	if err != nil {
