@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
@@ -31,10 +30,10 @@ type GptImageResponseGenerator interface {
 }
 
 type VoicePromptSaver interface {
-	Save(ctx context.Context, p *domain.Prompt) error
+	SavePrompt(ctx context.Context, p *domain.Prompt) error
 }
 
-type voice struct {
+type processVoice struct {
 	downloader     FileDownloader
 	converter      AudioConverter
 	transcriber    SpeechTranscriber
@@ -44,7 +43,7 @@ type voice struct {
 	client         TelegramClient
 }
 
-func NewVoice(
+func NewProcessVoice(
 	downloader FileDownloader,
 	converter AudioConverter,
 	transcriber SpeechTranscriber,
@@ -52,8 +51,8 @@ func NewVoice(
 	imageGenerator GptImageResponseGenerator,
 	saver VoicePromptSaver,
 	client TelegramClient,
-) *voice {
-	return &voice{
+) *processVoice {
+	return &processVoice{
 		downloader:     downloader,
 		converter:      converter,
 		transcriber:    transcriber,
@@ -64,77 +63,78 @@ func NewVoice(
 	}
 }
 
-func (v *voice) CanExecute(update *tgbotapi.Update) bool {
-	return update.Message != nil && update.Message.Voice != nil
+func (p *processVoice) IsCommand(u *tgbotapi.Update) bool {
+	return u.Message != nil && u.Message.Voice != nil
 }
 
-func (v *voice) Execute(update *tgbotapi.Update) {
-	chatID := update.Message.Chat.ID
-	messageID := update.Message.MessageID
+func (p *processVoice) HandleCommand(u *tgbotapi.Update) {
+	chatID := u.Message.Chat.ID
+	messageID := u.Message.MessageID
 
-	filePath, err := v.downloader.DownloadFile(update.Message.Voice.FileID)
+	filePath, err := p.downloader.DownloadFile(u.Message.Voice.FileID)
 	if err != nil {
-		v.client.SendTextMessage(domain.TextMessage{
+		p.client.SendTextMessage(domain.TextMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
-			Text:             fmt.Sprintf("Failed to download audio file: %v", err),
+			Text:             fmt.Sprintf("Failed to download audio file: %p", err),
 		})
 		return
 	}
 
-	mp3FilePath, err := v.converter.ConvertToMP3(filePath)
+	mp3FilePath, err := p.converter.ConvertToMP3(filePath)
 	if err != nil {
-		v.client.SendTextMessage(domain.TextMessage{
+		p.client.SendTextMessage(domain.TextMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
-			Text:             fmt.Sprintf("Failed to convert audio file: %v", err),
+			Text:             fmt.Sprintf("Failed to convert audio file: %p", err),
 		})
 		return
 	}
 
-	prompt, err := v.transcriber.SpeechToText(mp3FilePath)
+	prompt, err := p.transcriber.SpeechToText(mp3FilePath)
 	if err != nil {
-		v.client.SendTextMessage(domain.TextMessage{
+		p.client.SendTextMessage(domain.TextMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
-			Text:             fmt.Sprintf("Failed to transcribe audio file: %v", err),
+			Text:             fmt.Sprintf("Failed to transcribe audio file: %p", err),
 		})
 		return
 	}
 
-	v.client.SendTextMessage(domain.TextMessage{
+	p.client.SendTextMessage(domain.TextMessage{
 		ChatID:           chatID,
 		ReplyToMessageID: messageID,
 		Text:             fmt.Sprintf("🎤 %s", prompt),
 	})
 
-	if err := v.saver.Save(context.Background(), &domain.Prompt{
+	if err := p.saver.SavePrompt(context.Background(), &domain.Prompt{
 		ChatID:    chatID,
 		MessageID: messageID,
 		Text:      prompt,
-		FromUser:  fmt.Sprintf("%s %s", update.Message.From.FirstName, update.Message.From.LastName),
+		FromUser:  fmt.Sprintf("%s %s", u.Message.From.FirstName, u.Message.From.LastName),
 	}); err != nil {
-		v.client.SendTextMessage(domain.TextMessage{
+		p.client.SendTextMessage(domain.TextMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
-			Text:             fmt.Sprintf("Failed to save prompt: %v", err),
+			Text:             fmt.Sprintf("Failed to save prompt: %p", err),
 		})
 	}
 
-	if strings.Contains(strings.ToLower(prompt), "рисуй") {
-		processedPrompt := removeWordContaining(prompt, "рисуй")
+	commandText := domain.CommandText(prompt)
+	if commandText.ContainsAny(domain.DrawKeywords) {
+		prompt = commandText.ExtractAfterKeywords(domain.DrawKeywords)
 
-		imgBytes, err := v.imageGenerator.GenerateImage(processedPrompt)
+		imgBytes, err := p.imageGenerator.GenerateImage(prompt)
 		if err != nil {
-			v.client.SendTextMessage(domain.TextMessage{
+			p.client.SendTextMessage(domain.TextMessage{
 				ChatID:           chatID,
 				ReplyToMessageID: messageID,
-				Text:             fmt.Sprintf("Failed to generate image using Dall-E: %v", err),
+				Text:             fmt.Sprintf("Failed to generate image using Dall-E: %p", err),
 			})
 			return
 		}
 
-		v.client.SendImageMessage(domain.ImageMessage{
+		p.client.SendImageMessage(domain.ImageMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
 			Bytes:            imgBytes,
@@ -142,27 +142,14 @@ func (v *voice) Execute(update *tgbotapi.Update) {
 		return
 	}
 
-	response, err := v.textGenerator.CreateChatCompletion(update.Message.Chat.ID, prompt, "")
+	response, err := p.textGenerator.CreateChatCompletion(u.Message.Chat.ID, prompt, "")
 	if err != nil {
-		response = fmt.Sprintf("Failed to get chat completion: %v", err)
+		response = fmt.Sprintf("Failed to get chat completion: %p", err)
 	}
 
-	v.client.SendTextMessage(domain.TextMessage{
+	p.client.SendTextMessage(domain.TextMessage{
 		ChatID:           chatID,
 		ReplyToMessageID: messageID,
 		Text:             response,
 	})
-}
-
-func removeWordContaining(text string, target string) string {
-	words := strings.Fields(text)
-	var filtered []string
-
-	for _, word := range words {
-		if !strings.Contains(strings.ToLower(word), strings.ToLower(target)) {
-			filtered = append(filtered, word)
-		}
-	}
-
-	return strings.Join(filtered, " ")
 }

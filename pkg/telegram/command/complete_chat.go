@@ -19,47 +19,47 @@ type ActiveChatRepository interface {
 	GetSession(chatID int64) (domain.ChatSession, bool)
 }
 
-type gpt struct {
+type completeChat struct {
 	gptProvider    GptProvider
 	chatRepository ActiveChatRepository
 	client         TelegramClient
 }
 
-func NewGpt(
+func NewCompleteChat(
 	gptProvider GptProvider,
 	chatRepository ActiveChatRepository,
 	client TelegramClient,
-) *gpt {
-	return &gpt{
+) *completeChat {
+	return &completeChat{
 		gptProvider:    gptProvider,
 		chatRepository: chatRepository,
 		client:         client,
 	}
 }
 
-func (g *gpt) CanExecute(update *tgbotapi.Update) bool {
-	if update.Message == nil {
+func (c *completeChat) IsCommand(u *tgbotapi.Update) bool {
+	if u.Message == nil {
 		return false
 	}
 
-	session, _ := g.chatRepository.GetSession(update.Message.Chat.ID)
+	session, _ := c.chatRepository.GetSession(u.Message.Chat.ID)
 
-	return update.Message.Text != "" &&
+	return u.Message.Text != "" &&
 		!session.AwaitingSettings &&
-		!strings.HasPrefix(update.Message.Text, "/") &&
-		!strings.Contains(strings.ToLower(update.Message.Text), "рисуй")
+		!strings.HasPrefix(u.Message.Text, "/") &&
+		!strings.Contains(strings.ToLower(u.Message.Text), "рисуй")
 }
 
-func (g *gpt) Execute(update *tgbotapi.Update) {
-	chatID := update.Message.Chat.ID
-	messageID := update.Message.MessageID
+func (c *completeChat) HandleCommand(u *tgbotapi.Update) {
+	chatID := u.Message.Chat.ID
+	messageID := u.Message.MessageID
 
-	response, err := g.gptProvider.CreateChatCompletion(chatID, update.Message.Text, "")
+	response, err := c.gptProvider.CreateChatCompletion(chatID, u.Message.Text, "")
 	if err != nil {
 		response = fmt.Sprintf("Failed to get chat completion: %v", err)
 	}
 
-	g.client.SendTextMessage(domain.TextMessage{
+	c.client.SendTextMessage(domain.TextMessage{
 		ChatID:           chatID,
 		ReplyToMessageID: messageID,
 		Text:             response,

@@ -16,54 +16,54 @@ type ImageRecognizer interface {
 	CreateChatCompletion(chatID int64, text, base64image string) (string, error)
 }
 
-type vision struct {
+type completeImage struct {
 	getter     ImageGetter
 	recognizer ImageRecognizer
 	client     TelegramClient
 }
 
-func NewVision(
+func NewCompleteImage(
 	getter ImageGetter,
 	imageRecognizer ImageRecognizer,
 	client TelegramClient,
-) *vision {
-	return &vision{
+) *completeImage {
+	return &completeImage{
 		getter:     getter,
 		recognizer: imageRecognizer,
 		client:     client,
 	}
 }
 
-func (_ *vision) CanExecute(update *tgbotapi.Update) bool {
-	if update.Message == nil {
+func (c *completeImage) IsCommand(u *tgbotapi.Update) bool {
+	if u.Message == nil {
 		return false
 	}
 
-	return len(update.Message.Photo) > 0
+	return len(u.Message.Photo) > 0
 }
 
-func (v *vision) Execute(update *tgbotapi.Update) {
-	chatID := update.Message.Chat.ID
-	messageID := update.Message.MessageID
-	caption := update.Message.Caption
-	photo := (update.Message.Photo)[len(update.Message.Photo)-1]
+func (c *completeImage) HandleCommand(u *tgbotapi.Update) {
+	chatID := u.Message.Chat.ID
+	messageID := u.Message.MessageID
+	caption := u.Message.Caption
+	photo := (u.Message.Photo)[len(u.Message.Photo)-1]
 
-	base64image, err := v.getter.GetFile(photo.FileID)
+	base64image, err := c.getter.GetFile(photo.FileID)
 	if err != nil {
-		v.client.SendTextMessage(domain.TextMessage{
+		c.client.SendTextMessage(domain.TextMessage{
 			ChatID:           chatID,
 			ReplyToMessageID: messageID,
-			Text:             fmt.Sprintf("Failed to get image: %v", err),
+			Text:             fmt.Sprintf("Failed to get image: %c", err),
 		})
 		return
 	}
 
-	response, err := v.recognizer.CreateChatCompletion(chatID, caption, base64image)
+	response, err := c.recognizer.CreateChatCompletion(chatID, caption, base64image)
 	if err != nil {
-		response = fmt.Sprintf("Failed to recognize image: %v", err)
+		response = fmt.Sprintf("Failed to recognize image: %c", err)
 	}
 
-	v.client.SendTextMessage(domain.TextMessage{
+	c.client.SendTextMessage(domain.TextMessage{
 		ChatID:           chatID,
 		ReplyToMessageID: messageID,
 		Text:             response,

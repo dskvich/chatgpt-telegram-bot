@@ -108,26 +108,22 @@ func setupServices() (service.Group, error) {
 	oggToMp3Converter := converter.OggTomp3{}
 	speechToTextConverter := converter.NewSpeechToText(audioGptClient)
 
-	commands := []telegram.Command{
+	handlers := []any{
 		// non ai commands
-		command.NewInfo(telegramClient),
-		command.NewClearChatHistory(chatRepository, telegramClient),
-		command.NewSetChatTTL(telegramClient),
+		command.NewShowInfo(telegramClient),
+		command.NewClearChat(chatRepository, telegramClient),
+		command.NewSetTTL(telegramClient, chatRepository),
 
 		// features
-		command.NewGpt(openAIClient, chatRepository, telegramClient),
-		command.NewVoice(telegramClient, &oggToMp3Converter, speechToTextConverter, openAIClient, imageGptClient, promptRepository, telegramClient),
-		command.NewDraw(imageGptClient, promptRepository, telegramClient),
-		command.NewVision(telegramClient, openAIClient, telegramClient),
-
-		// callbacks
-		command.NewDrawCallback(imageGptClient, promptRepository, telegramClient),
-		command.NewSetChatTTLCallback(chatRepository, telegramClient),
+		command.NewCompleteChat(openAIClient, chatRepository, telegramClient),
+		command.NewProcessVoice(telegramClient, &oggToMp3Converter, speechToTextConverter, openAIClient, imageGptClient, promptRepository, telegramClient),
+		command.NewDrawImage(imageGptClient, promptRepository, telegramClient),
+		command.NewCompleteImage(telegramClient, openAIClient, telegramClient),
 	}
 
-	commandHandler := telegram.NewCommandHandler(commands)
+	updateHandler := telegram.NewRouter(handlers)
 
-	if svc, err = service.NewTelegramListener(telegramClient, authenticator, commandHandler); err == nil {
+	if svc, err = service.NewTelegramListener(telegramClient, authenticator, updateHandler); err == nil {
 		svcGroup = append(svcGroup, svc)
 	} else {
 		return nil, err

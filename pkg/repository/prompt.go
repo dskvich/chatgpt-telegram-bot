@@ -18,7 +18,7 @@ func NewPromptRepository(db *sql.DB) *promptRepository {
 	return &promptRepository{db: db}
 }
 
-func (repo *promptRepository) Save(ctx context.Context, p *domain.Prompt) error {
+func (repo *promptRepository) SavePrompt(ctx context.Context, p *domain.Prompt) error {
 	columns := []string{"message_id", "chat_id", "text", "created_by"}
 	args := []any{p.MessageID, p.ChatID, p.Text, p.FromUser}
 
