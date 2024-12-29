@@ -52,9 +52,6 @@ func (c *imageClient) GenerateImage(chatID int64, prompt string) ([]byte, error)
 		Style:          imageStyle,
 	}
 
-	fmt.Println(imageStyle)
-	return nil, nil
-
 	// Send request to the API.
 	url := "https://api.openai.com/v1/images/generations"
 	resp, err := c.sendRequest(url, chatRequest)
