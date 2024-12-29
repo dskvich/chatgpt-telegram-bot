@@ -110,6 +110,10 @@ jobs:
         id: extract_revision
         run: echo "::set-output name=revision::$(echo '${{ needs.build.outputs.tags }}' | awk -F':' '{print $NF}')"
 
+      - name: Get Commit Message
+        id: commit
+        run: echo "::set-output name=message::${{ github.event.head_commit.message }}"
+
       - name: Notify Deploy Success
         if: success()
         uses: appleboy/telegram-action@master
@@ -121,6 +125,7 @@ jobs:
             ✅ *Deploy Success*
             📦 Service: `${{ env.IMAGE_NAME }}`
             🔖 Revision: `${{ steps.extract_revision.outputs.revision }}`
+            📝 Release Notes: `${{ steps.commit.outputs.message }}`
 
       - name: Notify Deploy Failure
         if: failure()
