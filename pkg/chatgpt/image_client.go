@@ -2,25 +2,46 @@ package chatgpt
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
+
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 )
 
-type imageClient struct {
-	token string
-	hc    *http.Client
+type SettingsRepository interface {
+	GetAll(ctx context.Context, chatID int64) (map[string]string, error)
 }
 
-func NewImageClient(token string) *imageClient {
+type imageClient struct {
+	token        string
+	hc           *http.Client
+	settingsRepo SettingsRepository
+}
+
+func NewImageClient(token string, settingsRepo SettingsRepository) *imageClient {
 	return &imageClient{
-		token: token,
-		hc:    &http.Client{},
+		token:        token,
+		hc:           &http.Client{},
+		settingsRepo: settingsRepo,
 	}
 }
 
-func (c *imageClient) GenerateImage(prompt string) ([]byte, error) {
+func (c *imageClient) GenerateImage(chatID int64, prompt string) ([]byte, error) {
+	settings, err := c.settingsRepo.GetAll(context.TODO(), chatID)
+	if err != nil {
+		slog.Error("fetching system settings", "chatID", chatID, logger.Err(err))
+	}
+
+	imageStyle, found := settings[domain.ImageStyleKey]
+	if !found {
+		imageStyle = domain.ImageStyleDefault
+	}
+
 	// Prepare the request.
 	chatRequest := imagesGenerationsRequest{
 		Model:          "dall-e-3",
@@ -28,7 +49,11 @@ func (c *imageClient) GenerateImage(prompt string) ([]byte, error) {
 		N:              1,
 		Size:           "1024x1024",
 		ResponseFormat: "b64_json",
+		Style:          imageStyle,
 	}
+
+	fmt.Println(imageStyle)
+	return nil, nil
 
 	// Send request to the API.
 	url := "https://api.openai.com/v1/images/generations"

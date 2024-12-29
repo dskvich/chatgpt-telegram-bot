@@ -102,7 +102,7 @@ func setupServices() (service.Group, error) {
 	if err != nil {
 		return nil, fmt.Errorf("creating open ai client: %v", err)
 	}
-	imageGptClient := chatgpt.NewImageClient(cfg.OpenAIToken)
+	imageGptClient := chatgpt.NewImageClient(cfg.OpenAIToken, settingsRepository)
 	audioGptClient := chatgpt.NewAudioClient(cfg.OpenAIToken)
 
 	oggToMp3Converter := converter.OggTomp3{}
@@ -114,6 +114,7 @@ func setupServices() (service.Group, error) {
 		command.NewClearChat(chatRepository, telegramClient),
 		command.NewSetTTL(telegramClient, chatRepository),
 		command.NewShowSettings(telegramClient, settingsRepository),
+		command.NewSetImageStyle(telegramClient, settingsRepository),
 
 		// features
 		command.NewCompleteChat(openAIClient, chatRepository, telegramClient),

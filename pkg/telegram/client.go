@@ -131,6 +131,29 @@ func (c *client) SendTTLMessage(msg domain.TTLMessage) {
 	}
 }
 
+func (c *client) SendImageStyleMessage(msg domain.TextMessage) {
+	var keyboardButtons []tgbotapi.InlineKeyboardButton
+	for key, label := range domain.ImageStyles {
+		callbackData := "image_style_" + key // Add the prefix
+		keyboardButtons = append(keyboardButtons, tgbotapi.NewInlineKeyboardButtonData(label, callbackData))
+	}
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			keyboardButtons[0],
+			keyboardButtons[1],
+		),
+	)
+
+	m := tgbotapi.NewMessage(msg.ChatID, domain.GetImageStylePrompt())
+	m.ReplyToMessageID = msg.ReplyToMessageID
+	m.ReplyMarkup = keyboard
+
+	if _, err := c.bot.Send(m); err != nil {
+		c.handleError(msg.ChatID, msg.ReplyToMessageID, err)
+	}
+}
+
 func (c *client) SendCallbackMessage(msg domain.CallbackMessage) {
 	m := tgbotapi.NewCallback(msg.CallbackQueryID, "")
 

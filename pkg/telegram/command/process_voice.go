@@ -26,7 +26,7 @@ type GptTextResponseGenerator interface {
 }
 
 type GptImageResponseGenerator interface {
-	GenerateImage(prompt string) ([]byte, error)
+	GenerateImage(chatID int64, prompt string) ([]byte, error)
 }
 
 type VoicePromptSaver interface {
@@ -124,7 +124,7 @@ func (p *processVoice) HandleCommand(u *tgbotapi.Update) {
 	if commandText.ContainsAny(domain.DrawKeywords) {
 		prompt = commandText.ExtractAfterKeywords(domain.DrawKeywords)
 
-		imgBytes, err := p.imageGenerator.GenerateImage(prompt)
+		imgBytes, err := p.imageGenerator.GenerateImage(chatID, prompt)
 		if err != nil {
 			p.client.SendTextMessage(domain.TextMessage{
 				ChatID:           chatID,

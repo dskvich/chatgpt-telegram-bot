@@ -11,7 +11,7 @@ import (
 )
 
 type ImageGenerator interface {
-	GenerateImage(prompt string) ([]byte, error)
+	GenerateImage(chatID int64, prompt string) ([]byte, error)
 }
 
 type PromptStorage interface {
@@ -67,7 +67,7 @@ func (d *drawImage) HandleCommand(u *tgbotapi.Update) {
 }
 
 func (d *drawImage) generateAndSendImage(chatID int64, messageID int, prompt string) {
-	imgBytes, err := d.generator.GenerateImage(prompt)
+	imgBytes, err := d.generator.GenerateImage(chatID, prompt)
 	if err != nil {
 		d.client.SendTextMessage(domain.TextMessage{
 			ChatID:           chatID,

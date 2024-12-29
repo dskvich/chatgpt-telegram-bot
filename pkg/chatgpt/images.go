@@ -6,6 +6,7 @@ type imagesGenerationsRequest struct {
 	N              int    `json:"n"`
 	Size           string `json:"size"`
 	ResponseFormat string `json:"response_format"`
+	Style          string `json:"style"`
 }
 
 type imagesGenerationsResponse struct {
