@@ -221,23 +221,25 @@ func (c *client) callTool(chatID int64, toolCall domain.ToolCall) (string, error
 	// The first argument is always chatID
 	args := []reflect.Value{reflect.ValueOf(chatID)}
 
-	// Parse the toolCall.Function.Arguments assuming it is a JSON string
-	var argumentMap map[string]interface{}
-	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &argumentMap); err != nil {
-		return "", fmt.Errorf("failed to parse arguments: %v", err)
-	}
+	if fnType.NumIn() > 1 {
+		// If the function expects more than one argument, parse arguments from toolCall.Function.Arguments
+		var argumentMap map[string]interface{}
+		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &argumentMap); err != nil {
+			return "", fmt.Errorf("failed to parse arguments: %v", err)
+		}
 
-	// Check that there is exactly one key in the map
-	if len(argumentMap) != 1 {
-		return "", fmt.Errorf("expected exactly one argument, but got %d", len(argumentMap))
-	}
+		if len(argumentMap) != 1 {
+			return "", fmt.Errorf("expected exactly one argument, but got %d", len(argumentMap))
+		}
 
-	// If the function has two parameters, add the second one from toolCall.Function.Arguments
-	if fnType.NumIn() == 2 {
+		// Add the additional argument to the args slice
 		for _, argValue := range argumentMap {
 			args = append(args, reflect.ValueOf(argValue))
 			break // Only use the first value found in the JSON map
 		}
+	} else if fnType.NumIn() != 1 {
+		// Validate that the function has exactly one parameter if arguments are not provided
+		return "", fmt.Errorf("function %s has an unexpected number of parameters", toolCall.Function.Name)
 	}
 
 	// Call the function dynamically
