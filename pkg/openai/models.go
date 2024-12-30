@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	chatMessageRoleSystem    = "system"
+	chatMessageRoleDeveloper = "developer"
 	chatMessageRoleUser      = "user"
 	chatMessageRoleAssistant = "assistant"
 	chatMessageRoleTool      = "tool"

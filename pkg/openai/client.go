@@ -137,7 +137,7 @@ func (c *client) createNewSession(chatID int64) *domain.ChatSession {
 	return &domain.ChatSession{
 		ModelName: model,
 		Messages: []domain.ChatMessage{
-			{Role: chatMessageRoleSystem, Content: settings[domain.SystemPromptKey]},
+			{Role: chatMessageRoleDeveloper, Content: settings[domain.SystemPromptKey]},
 		},
 	}
 }
