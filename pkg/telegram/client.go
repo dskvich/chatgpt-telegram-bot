@@ -74,23 +74,22 @@ func (c *client) SendTextMessage(msg domain.TextMessage) {
 		}
 
 		// Send the current chunk
-		c.send(msg.ChatID, msg.ReplyToMessageID, text[:stop])
+		c.send(msg.ChatID, text[:stop])
 
 		text = text[stop:]
 		msgRuneCount = utf8.RuneCountInString(text)
 	}
 
-	c.send(msg.ChatID, msg.ReplyToMessageID, text)
+	c.send(msg.ChatID, text)
 }
 
-func (c *client) send(chatID int64, replyToMessageID int, text string) {
+func (c *client) send(chatID int64, text string) {
 	m := tgbotapi.NewMessage(chatID, text)
-	m.ReplyToMessageID = replyToMessageID
 	m.ParseMode = tgbotapi.ModeHTML
 	m.DisableWebPagePreview = true
 
 	if _, err := c.bot.Send(m); err != nil {
-		c.handleError(chatID, replyToMessageID, err)
+		c.handleError(chatID, err)
 	}
 }
 
@@ -102,11 +101,10 @@ func (c *client) SendImageMessage(msg domain.ImageMessage) {
 	)
 
 	m := tgbotapi.NewPhoto(msg.ChatID, tgbotapi.FileBytes{Bytes: msg.Bytes})
-	m.ReplyToMessageID = msg.ReplyToMessageID
 	m.ReplyMarkup = keyboard
 
 	if _, err := c.bot.Send(m); err != nil {
-		c.handleError(msg.ChatID, msg.ReplyToMessageID, err)
+		c.handleError(msg.ChatID, err)
 	}
 }
 
@@ -123,11 +121,10 @@ func (c *client) SendTTLMessage(msg domain.TTLMessage) {
 	)
 
 	m := tgbotapi.NewMessage(msg.ChatID, "Select TTL option:")
-	m.ReplyToMessageID = msg.ReplyToMessageID
 	m.ReplyMarkup = keyboard
 
 	if _, err := c.bot.Send(m); err != nil {
-		c.handleError(msg.ChatID, msg.ReplyToMessageID, err)
+		c.handleError(msg.ChatID, err)
 	}
 }
 
@@ -146,11 +143,10 @@ func (c *client) SendImageStyleMessage(msg domain.TextMessage) {
 	)
 
 	m := tgbotapi.NewMessage(msg.ChatID, domain.GetImageStylePrompt())
-	m.ReplyToMessageID = msg.ReplyToMessageID
 	m.ReplyMarkup = keyboard
 
 	if _, err := c.bot.Send(m); err != nil {
-		c.handleError(msg.ChatID, msg.ReplyToMessageID, err)
+		c.handleError(msg.ChatID, err)
 	}
 }
 
@@ -160,11 +156,10 @@ func (c *client) SendCallbackMessage(msg domain.CallbackMessage) {
 	_, _ = c.bot.Send(m)
 }
 
-func (c *client) handleError(chatID int64, replyToMessageID int, err error) {
-	slog.Error("sending message error", "chatID", chatID, "replyToMessageID", replyToMessageID, logger.Err(err))
+func (c *client) handleError(chatID int64, err error) {
+	slog.Error("sending message error", "chatID", chatID, logger.Err(err))
 
 	m := tgbotapi.NewMessage(chatID, responseDeliveryFailedMessage)
-	m.ReplyToMessageID = replyToMessageID
 
 	_, _ = c.bot.Send(m)
 }

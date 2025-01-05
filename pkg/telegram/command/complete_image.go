@@ -44,16 +44,14 @@ func (c *completeImage) IsCommand(u *tgbotapi.Update) bool {
 
 func (c *completeImage) HandleCommand(u *tgbotapi.Update) {
 	chatID := u.Message.Chat.ID
-	messageID := u.Message.MessageID
 	caption := u.Message.Caption
 	photo := (u.Message.Photo)[len(u.Message.Photo)-1]
 
 	base64image, err := c.getter.GetFile(photo.FileID)
 	if err != nil {
 		c.client.SendTextMessage(domain.TextMessage{
-			ChatID:           chatID,
-			ReplyToMessageID: messageID,
-			Text:             fmt.Sprintf("Failed to get image: %c", err),
+			ChatID: chatID,
+			Text:   fmt.Sprintf("Failed to get image: %c", err),
 		})
 		return
 	}
@@ -64,8 +62,7 @@ func (c *completeImage) HandleCommand(u *tgbotapi.Update) {
 	}
 
 	c.client.SendTextMessage(domain.TextMessage{
-		ChatID:           chatID,
-		ReplyToMessageID: messageID,
-		Text:             response,
+		ChatID: chatID,
+		Text:   response,
 	})
 }

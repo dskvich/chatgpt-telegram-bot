@@ -28,8 +28,7 @@ func (s *showInfo) IsCommand(u *tgbotapi.Update) bool {
 
 func (s *showInfo) HandleCommand(u *tgbotapi.Update) {
 	s.client.SendTextMessage(domain.TextMessage{
-		ChatID:           u.Message.Chat.ID,
-		ReplyToMessageID: u.Message.MessageID,
-		Text:             domain.WelcomeMessage,
+		ChatID: u.Message.Chat.ID,
+		Text:   domain.WelcomeMessage,
 	})
 }

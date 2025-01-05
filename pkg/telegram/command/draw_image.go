@@ -57,30 +57,27 @@ func (d *drawImage) HandleCommand(u *tgbotapi.Update) {
 		FromUser:  fmt.Sprintf("%s %s", u.Message.From.FirstName, u.Message.From.LastName),
 	}); err != nil {
 		d.client.SendTextMessage(domain.TextMessage{
-			ChatID:           chatID,
-			ReplyToMessageID: messageID,
-			Text:             fmt.Sprintf("Failed to save prompt: %v", err),
+			ChatID: chatID,
+			Text:   fmt.Sprintf("Failed to save prompt: %v", err),
 		})
 	}
 
-	d.generateAndSendImage(chatID, messageID, prompt)
+	d.generateAndSendImage(chatID, prompt)
 }
 
-func (d *drawImage) generateAndSendImage(chatID int64, messageID int, prompt string) {
+func (d *drawImage) generateAndSendImage(chatID int64, prompt string) {
 	imgBytes, err := d.generator.GenerateImage(chatID, prompt)
 	if err != nil {
 		d.client.SendTextMessage(domain.TextMessage{
-			ChatID:           chatID,
-			ReplyToMessageID: messageID,
-			Text:             fmt.Sprintf("Failed to generate image: %v", err),
+			ChatID: chatID,
+			Text:   fmt.Sprintf("Failed to generate image: %v", err),
 		})
 		return
 	}
 
 	d.client.SendImageMessage(domain.ImageMessage{
-		ChatID:           chatID,
-		ReplyToMessageID: messageID,
-		Bytes:            imgBytes,
+		ChatID: chatID,
+		Bytes:  imgBytes,
 	})
 }
 
@@ -91,27 +88,26 @@ func (d *drawImage) IsCallback(u *tgbotapi.Update) bool {
 func (d *drawImage) HandleCallback(u *tgbotapi.Update) {
 	chatID := u.CallbackQuery.Message.Chat.ID
 	messageID := u.CallbackQuery.Message.ReplyToMessage.MessageID
+	//TODO: panics after removing replyTo... need to get initial request from another place
 
 	prompt, err := d.storage.FetchPrompt(context.Background(), chatID, messageID)
 	if err != nil {
 		d.client.SendTextMessage(domain.TextMessage{
-			ChatID:           chatID,
-			ReplyToMessageID: messageID,
-			Text:             fmt.Sprintf("Failed to fetch prompt: %v", err),
+			ChatID: chatID,
+			Text:   fmt.Sprintf("Failed to fetch prompt: %v", err),
 		})
 		return
 	}
 
 	if prompt == nil {
 		d.client.SendTextMessage(domain.TextMessage{
-			ChatID:           chatID,
-			ReplyToMessageID: messageID,
-			Text:             "Sorry, I can't find the original request for generating a similar image. Please try again.",
+			ChatID: chatID,
+			Text:   "Sorry, I can't find the original request for generating a similar image. Please try again.",
 		})
 		return
 	}
 
-	d.generateAndSendImage(chatID, messageID, prompt.Text)
+	d.generateAndSendImage(chatID, prompt.Text)
 
 	d.client.SendCallbackMessage(domain.CallbackMessage{
 		CallbackQueryID: u.CallbackQuery.ID,

@@ -74,9 +74,8 @@ func (p *processVoice) HandleCommand(u *tgbotapi.Update) {
 	filePath, err := p.downloader.DownloadFile(u.Message.Voice.FileID)
 	if err != nil {
 		p.client.SendTextMessage(domain.TextMessage{
-			ChatID:           chatID,
-			ReplyToMessageID: messageID,
-			Text:             fmt.Sprintf("Failed to download audio file: %p", err),
+			ChatID: chatID,
+			Text:   fmt.Sprintf("Failed to download audio file: %p", err),
 		})
 		return
 	}
@@ -84,9 +83,8 @@ func (p *processVoice) HandleCommand(u *tgbotapi.Update) {
 	mp3FilePath, err := p.converter.ConvertToMP3(filePath)
 	if err != nil {
 		p.client.SendTextMessage(domain.TextMessage{
-			ChatID:           chatID,
-			ReplyToMessageID: messageID,
-			Text:             fmt.Sprintf("Failed to convert audio file: %p", err),
+			ChatID: chatID,
+			Text:   fmt.Sprintf("Failed to convert audio file: %p", err),
 		})
 		return
 	}
@@ -94,17 +92,15 @@ func (p *processVoice) HandleCommand(u *tgbotapi.Update) {
 	prompt, err := p.transcriber.SpeechToText(mp3FilePath)
 	if err != nil {
 		p.client.SendTextMessage(domain.TextMessage{
-			ChatID:           chatID,
-			ReplyToMessageID: messageID,
-			Text:             fmt.Sprintf("Failed to transcribe audio file: %p", err),
+			ChatID: chatID,
+			Text:   fmt.Sprintf("Failed to transcribe audio file: %p", err),
 		})
 		return
 	}
 
 	p.client.SendTextMessage(domain.TextMessage{
-		ChatID:           chatID,
-		ReplyToMessageID: messageID,
-		Text:             fmt.Sprintf("🎤 %s", prompt),
+		ChatID: chatID,
+		Text:   fmt.Sprintf("🎤 %s", prompt),
 	})
 
 	if err := p.saver.SavePrompt(context.Background(), &domain.Prompt{
@@ -114,9 +110,8 @@ func (p *processVoice) HandleCommand(u *tgbotapi.Update) {
 		FromUser:  fmt.Sprintf("%s %s", u.Message.From.FirstName, u.Message.From.LastName),
 	}); err != nil {
 		p.client.SendTextMessage(domain.TextMessage{
-			ChatID:           chatID,
-			ReplyToMessageID: messageID,
-			Text:             fmt.Sprintf("Failed to save prompt: %p", err),
+			ChatID: chatID,
+			Text:   fmt.Sprintf("Failed to save prompt: %p", err),
 		})
 	}
 
@@ -127,17 +122,15 @@ func (p *processVoice) HandleCommand(u *tgbotapi.Update) {
 		imgBytes, err := p.imageGenerator.GenerateImage(chatID, prompt)
 		if err != nil {
 			p.client.SendTextMessage(domain.TextMessage{
-				ChatID:           chatID,
-				ReplyToMessageID: messageID,
-				Text:             fmt.Sprintf("Failed to generate image using Dall-E: %p", err),
+				ChatID: chatID,
+				Text:   fmt.Sprintf("Failed to generate image using Dall-E: %p", err),
 			})
 			return
 		}
 
 		p.client.SendImageMessage(domain.ImageMessage{
-			ChatID:           chatID,
-			ReplyToMessageID: messageID,
-			Bytes:            imgBytes,
+			ChatID: chatID,
+			Bytes:  imgBytes,
 		})
 		return
 	}
@@ -148,8 +141,7 @@ func (p *processVoice) HandleCommand(u *tgbotapi.Update) {
 	}
 
 	p.client.SendTextMessage(domain.TextMessage{
-		ChatID:           chatID,
-		ReplyToMessageID: messageID,
-		Text:             response,
+		ChatID: chatID,
+		Text:   response,
 	})
 }

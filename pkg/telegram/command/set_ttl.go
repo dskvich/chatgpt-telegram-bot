@@ -35,8 +35,7 @@ func (c *setTTL) IsCommand(u *tgbotapi.Update) bool {
 
 func (c *setTTL) HandleCommand(u *tgbotapi.Update) {
 	c.client.SendTTLMessage(domain.TTLMessage{
-		ChatID:           u.Message.Chat.ID,
-		ReplyToMessageID: u.Message.MessageID,
+		ChatID: u.Message.Chat.ID,
 	})
 }
 
@@ -46,15 +45,13 @@ func (c *setTTL) IsCallback(u *tgbotapi.Update) bool {
 
 func (c *setTTL) HandleCallback(u *tgbotapi.Update) {
 	chatID := u.CallbackQuery.Message.Chat.ID
-	messageID := u.CallbackQuery.Message.ReplyToMessage.MessageID
 	callbackQueryID := u.CallbackQuery.ID
 
 	ttl, err := c.parseTTL(u.CallbackQuery.Data)
 	if err != nil {
 		c.client.SendTextMessage(domain.TextMessage{
-			ChatID:           chatID,
-			ReplyToMessageID: messageID,
-			Text:             "Unknown TTL option selected.",
+			ChatID: chatID,
+			Text:   "Unknown TTL option selected.",
 		})
 		return
 	}
@@ -71,9 +68,8 @@ func (c *setTTL) HandleCallback(u *tgbotapi.Update) {
 	}
 
 	c.client.SendTextMessage(domain.TextMessage{
-		ChatID:           chatID,
-		ReplyToMessageID: messageID,
-		Text:             fmt.Sprintf("Set TTL to %v", ttlText),
+		ChatID: chatID,
+		Text:   fmt.Sprintf("Set TTL to %v", ttlText),
 	})
 }
 

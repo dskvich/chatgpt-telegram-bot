@@ -44,9 +44,8 @@ func (s *showSettings) HandleCommand(u *tgbotapi.Update) {
 	message := s.formatForTelegram(settings)
 
 	s.client.SendTextMessage(domain.TextMessage{
-		ChatID:           u.Message.Chat.ID,
-		ReplyToMessageID: u.Message.MessageID,
-		Text:             message,
+		ChatID: u.Message.Chat.ID,
+		Text:   message,
 	})
 }
 

@@ -36,7 +36,6 @@ func (c *setImageStyle) IsCommand(u *tgbotapi.Update) bool {
 func (c *setImageStyle) HandleCommand(u *tgbotapi.Update) {
 	c.client.SendImageStyleMessage(domain.TextMessage{
 		ChatID: u.Message.Chat.ID,
-		//ReplyToMessageID: u.Message.MessageID,
 	})
 }
 

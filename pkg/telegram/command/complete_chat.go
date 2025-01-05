@@ -52,7 +52,6 @@ func (c *completeChat) IsCommand(u *tgbotapi.Update) bool {
 
 func (c *completeChat) HandleCommand(u *tgbotapi.Update) {
 	chatID := u.Message.Chat.ID
-	messageID := u.Message.MessageID
 
 	response, err := c.gptProvider.CreateChatCompletion(chatID, u.Message.Text, "")
 	if err != nil {
@@ -60,8 +59,7 @@ func (c *completeChat) HandleCommand(u *tgbotapi.Update) {
 	}
 
 	c.client.SendTextMessage(domain.TextMessage{
-		ChatID:           chatID,
-		ReplyToMessageID: messageID,
-		Text:             response,
+		ChatID: chatID,
+		Text:   response,
 	})
 }

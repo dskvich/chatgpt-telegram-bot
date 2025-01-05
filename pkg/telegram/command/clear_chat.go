@@ -31,8 +31,7 @@ func (c *clearChat) HandleCommand(u *tgbotapi.Update) {
 	c.remover.RemoveSession(u.Message.Chat.ID)
 
 	c.client.SendTextMessage(domain.TextMessage{
-		ChatID:           u.Message.Chat.ID,
-		ReplyToMessageID: u.Message.MessageID,
-		Text:             "История очищена. Начните новый чат.",
+		ChatID: u.Message.Chat.ID,
+		Text:   "История очищена. Начните новый чат.",
 	})
 }
