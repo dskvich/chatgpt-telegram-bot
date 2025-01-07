@@ -39,6 +39,7 @@ func (g *getChatSettings) Function() any {
 		settings, err := g.repo.GetAll(context.Background(), chatID)
 		if err != nil {
 			slog.Error("failed to get chat settings", "chatId", chatID, logger.Err(err))
+			return "", err
 		}
 
 		return fmt.Sprint(settings), nil
