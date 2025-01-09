@@ -13,7 +13,6 @@ import (
 	"github.com/sashabaranov/go-openai/jsonschema"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 )
 
 type ChatRepository interface {
@@ -25,7 +24,9 @@ type SettingsRepository interface {
 	GetAll(ctx context.Context, chatID int64) (map[string]string, error)
 }
 
-type toolFunctionMap map[string]any
+type ChatStyleRepository interface {
+	GetActiveStyle(ctx context.Context, chatID int64) (*domain.ChatStyle, error)
+}
 
 type ToolFunction interface {
 	Name() string
@@ -35,42 +36,37 @@ type ToolFunction interface {
 }
 
 type client struct {
-	token              string
-	hc                 *http.Client
-	chatRepo           ChatRepository
-	settingsRepo       SettingsRepository
-	tools              []ToolFunction
-	availableFunctions toolFunctionMap
+	token         string
+	hc            *http.Client
+	chatRepo      ChatRepository
+	settingsRepo  SettingsRepository
+	chatStyleRepo ChatStyleRepository
+	tools         []ToolFunction
 }
 
 func NewClient(
 	token string,
 	chatRepo ChatRepository,
 	settingsRepo SettingsRepository,
+	chatStyleRepo ChatStyleRepository,
 	tools []ToolFunction,
 ) (*client, error) {
 	if token == "" {
 		return nil, fmt.Errorf("token is empty")
 	}
 	return &client{
-		token:              token,
-		hc:                 &http.Client{},
-		chatRepo:           chatRepo,
-		settingsRepo:       settingsRepo,
-		tools:              tools,
-		availableFunctions: createAvailableFunctions(tools),
+		token:         token,
+		hc:            &http.Client{},
+		chatRepo:      chatRepo,
+		settingsRepo:  settingsRepo,
+		chatStyleRepo: chatStyleRepo,
+		tools:         tools,
 	}, nil
 }
 
-func createAvailableFunctions(tools []ToolFunction) toolFunctionMap {
-	m := make(toolFunctionMap)
-	for _, t := range tools {
-		m[t.Name()] = t.Function()
-	}
-	return m
-}
-
 func (c *client) CreateChatCompletion(chatID int64, text, base64image string) (string, error) {
+	slog.Info("CreateChatCompletion", "chatID", chatID, "textLength", len(text), "hasImage", base64image != "")
+
 	var content any
 	if base64image != "" {
 		content = []domain.Content{
@@ -83,15 +79,14 @@ func (c *client) CreateChatCompletion(chatID int64, text, base64image string) (s
 		content = text
 	}
 
-	session := c.getSession(chatID)
+	session, err := c.getSession(chatID)
+	if session == nil {
+		return "", fmt.Errorf("getting session: %v", err)
+	}
+
 	session.Messages = append(session.Messages, domain.ChatMessage{Role: chatMessageRoleUser, Content: content})
 
-	slog.Info("sending chat completion request using model",
-		"chatID", chatID,
-		"text", text,
-		"model", session.ModelName,
-		"messages in chain", len(session.Messages),
-	)
+	slog.Info("Requesting chat completion", "chatID", chatID, "model", session.ModelName, "messageCount", session.Messages)
 
 	response, err := c.processChatCompletion(session)
 	if err != nil {
@@ -115,18 +110,26 @@ func (c *client) CreateChatCompletion(chatID int64, text, base64image string) (s
 	return "", fmt.Errorf("no completion response from API")
 }
 
-func (c *client) getSession(chatID int64) *domain.ChatSession {
+func (c *client) getSession(chatID int64) (*domain.ChatSession, error) {
 	session, ok := c.chatRepo.GetSession(chatID)
 	if ok {
-		return &session
+		return &session, nil
 	}
-	return c.createNewSession(chatID)
+
+	slog.Info("Creating new session", "chatID", chatID)
+	newSession, err := c.createNewSession(chatID)
+	if err != nil {
+		return nil, fmt.Errorf("creating new session: %v", err)
+	}
+
+	return newSession, nil
 }
 
-func (c *client) createNewSession(chatID int64) *domain.ChatSession {
-	settings, err := c.settingsRepo.GetAll(context.TODO(), chatID)
+func (c *client) createNewSession(chatID int64) (*domain.ChatSession, error) {
+	ctx := context.Background()
+	settings, err := c.settingsRepo.GetAll(ctx, chatID)
 	if err != nil {
-		slog.Error("fetching system settings", "chatID", chatID, logger.Err(err))
+		return nil, fmt.Errorf("fetching system settings: %v", err)
 	}
 
 	model, found := settings[domain.ModelKey]
@@ -134,12 +137,23 @@ func (c *client) createNewSession(chatID int64) *domain.ChatSession {
 		model = domain.DefaultModel
 	}
 
+	chatStyle, err := c.chatStyleRepo.GetActiveStyle(ctx, chatID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching active chat style: %v", err)
+	}
+
+	messages := []domain.ChatMessage{}
+	if chatStyle != nil && chatStyle.Description != "" {
+		messages = append(messages, domain.ChatMessage{
+			Role:    chatMessageRoleDeveloper,
+			Content: chatStyle.Description,
+		})
+	}
+
 	return &domain.ChatSession{
 		ModelName: model,
-		Messages: []domain.ChatMessage{
-			{Role: chatMessageRoleDeveloper, Content: settings[domain.SystemPromptKey]},
-		},
-	}
+		Messages:  messages,
+	}, nil
 }
 
 func (c *client) processChatCompletion(session *domain.ChatSession) (*domain.ChatMessage, error) {
@@ -188,58 +202,94 @@ func (c *client) saveSession(chatID int64, session *domain.ChatSession) {
 }
 
 func (c *client) handleToolCalls(chatID int64, session *domain.ChatSession, toolCalls []domain.ToolCall) error {
+	slog.Info("Handling tool calls", "chatID", chatID, "toolCallCount", len(toolCalls))
+
 	for _, toolCall := range toolCalls {
 		toolResponse, err := c.callTool(chatID, toolCall)
 		if err != nil {
 			return fmt.Errorf("calling tool %s: %w", toolCall.Function.Name, err)
 		}
 
-		toolMessage := domain.ChatMessage{
+		session.Messages = append(session.Messages, domain.ChatMessage{
 			ToolCallID: toolCall.ID,
 			Role:       chatMessageRoleTool,
 			Name:       toolCall.Function.Name,
 			Content:    toolResponse,
-		}
-		session.Messages = append(session.Messages, toolMessage)
+		})
+		slog.Info("Tool call succeeded", "chatID", chatID, "tool", toolCall.Function.Name)
 	}
 	return nil
 }
 
 func (c *client) callTool(chatID int64, toolCall domain.ToolCall) (string, error) {
-	functionToCall, exists := c.availableFunctions[toolCall.Function.Name]
-	if !exists {
+	// Find the tool in the tools slice
+	var toolFunction ToolFunction
+	for _, tool := range c.tools {
+		if tool.Name() == toolCall.Function.Name {
+			toolFunction = tool
+			break
+		}
+	}
+
+	if toolFunction == nil {
+		slog.Error("Tool function not found", "chatID", chatID, "tool", toolCall.Function.Name)
 		return "", fmt.Errorf("no function available for tool %s", toolCall.Function.Name)
 	}
 
-	fn := reflect.ValueOf(functionToCall)
+	fn := reflect.ValueOf(toolFunction.Function())
 	fnType := fn.Type()
 
 	if fnType.Kind() != reflect.Func {
+		slog.Error("Tool is not a valid function", "chatID", chatID, "tool", toolCall.Function.Name)
 		return "", fmt.Errorf("tool function %s is not a function", toolCall.Function.Name)
 	}
 
-	// The first argument is always chatID
+	// Start building arguments with chatID as the first parameter
 	args := []reflect.Value{reflect.ValueOf(chatID)}
 
-	if fnType.NumIn() > 1 {
-		// If the function expects more than one argument, parse arguments from toolCall.Function.Arguments
-		var argumentMap map[string]interface{}
-		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &argumentMap); err != nil {
-			return "", fmt.Errorf("failed to parse arguments: %v", err)
+	// Decode the arguments JSON string into a map
+	var argumentMap map[string]interface{}
+	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &argumentMap); err != nil {
+		slog.Error("Failed to decode tool function arguments", "chatID", chatID, "tool", toolCall.Function.Name, "error", err)
+		return "", fmt.Errorf("failed to decode arguments: %v", err)
+	}
+
+	// Prepare log data for expected parameters
+	expectedParameters := make(map[string]jsonschema.DataType)
+	for paramName, paramDef := range toolFunction.Parameters().Properties {
+		expectedParameters[paramName] = paramDef.Type
+	}
+
+	// Log attempt to call with expected arguments
+	slog.Info("Attempting to call tool function with arguments",
+		"chatID", chatID,
+		"tool", toolCall.Function.Name,
+		"expectedArguments", expectedParameters,
+		"providedArguments", argumentMap,
+	)
+
+	// Match arguments by name using the parameters definition
+	for _, requiredParam := range toolFunction.Parameters().Required {
+		value, exists := argumentMap[requiredParam]
+		if !exists {
+			slog.Error("Missing required argument", "chatID", chatID, "tool", toolCall.Function.Name, "parameter", requiredParam)
+			return "", fmt.Errorf("missing required argument: %s", requiredParam)
 		}
 
-		if len(argumentMap) != 1 {
-			return "", fmt.Errorf("expected exactly one argument, but got %d", len(argumentMap))
+		// Ensure the value type is correct (assuming all parameters are strings here)
+		val := reflect.ValueOf(value)
+		if val.Kind() != reflect.String {
+			slog.Error("Argument type mismatch", "chatID", chatID, "tool", toolCall.Function.Name, "parameter", requiredParam, "expectedType", "string", "providedType", val.Kind().String())
+			return "", fmt.Errorf("argument type mismatch for parameter %s: expected string, got %s", requiredParam, val.Kind().String())
 		}
 
-		// Add the additional argument to the args slice
-		for _, argValue := range argumentMap {
-			args = append(args, reflect.ValueOf(argValue))
-			break // Only use the first value found in the JSON map
-		}
-	} else if fnType.NumIn() != 1 {
-		// Validate that the function has exactly one parameter if arguments are not provided
-		return "", fmt.Errorf("function %s has an unexpected number of parameters", toolCall.Function.Name)
+		args = append(args, val)
+	}
+
+	// Validate argument count
+	if len(args) != fnType.NumIn() {
+		slog.Error("Argument count mismatch", "chatID", chatID, "tool", toolCall.Function.Name, "expected", fnType.NumIn(), "provided", len(args))
+		return "", fmt.Errorf("argument count mismatch: expected %d, got %d", fnType.NumIn(), len(args))
 	}
 
 	// Call the function dynamically

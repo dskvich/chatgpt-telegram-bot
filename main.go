@@ -89,16 +89,19 @@ func setupServices() (service.Group, error) {
 	chatRepository := repository.NewChatRepository(15 * time.Minute)
 	promptRepository := repository.NewPromptRepository(db)
 	settingsRepository := repository.NewSettingsRepository(db)
+	chatStyleRepository := repository.NewChatStyleRepository(db)
 
 	// Initialize tools
 	tools := []openai.ToolFunction{
 		tools.NewGetChatSettings(settingsRepository),
-		tools.NewSetSystemPrompt(settingsRepository),
 		tools.NewSetModel(settingsRepository),
+		tools.NewUpdateActiveChatStyle(chatStyleRepository),
+		tools.NewCreateChatStyleFromActive(chatStyleRepository),
+		tools.NewActivateChatStyle(chatStyleRepository),
 	}
 
 	//TODO rename textGptClient to openAiClient
-	openAIClient, err := openai.NewClient(cfg.OpenAIToken, chatRepository, settingsRepository, tools)
+	openAIClient, err := openai.NewClient(cfg.OpenAIToken, chatRepository, settingsRepository, chatStyleRepository, tools)
 	if err != nil {
 		return nil, fmt.Errorf("creating open ai client: %v", err)
 	}
