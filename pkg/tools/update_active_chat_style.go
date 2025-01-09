@@ -8,7 +8,7 @@ import (
 )
 
 type UpdateActiveChatStyleRepository interface {
-	UpdateActiveStyle(ctx context.Context, chatID int64, description string) error
+	UpdateActiveStyle(ctx context.Context, chatID int64, newInstruction string) error
 }
 
 type updateActiveChatStyle struct {
@@ -26,29 +26,29 @@ func (u *updateActiveChatStyle) Name() string {
 }
 
 func (u *updateActiveChatStyle) Description() string {
-	return "Updates the currently active communication style by modifying its description. " +
-		"Use this tool when the user provides additional details or changes to the current style without naming a new one. " +
-		"For example, when the user says, 'Speak like a geek.'"
+	return "Adds new instruction to the current communication style. " +
+		"Use this tool to refine or adjust the style without replacing it entirely. " +
+		"For instance, if the current style is 'Speak like an engineer,' and the user adds 'Make it more emotional,' " +
+		"this tool will incorporate the new instruction into the existing style description."
 }
 
 func (u *updateActiveChatStyle) Parameters() jsonschema.Definition {
 	return jsonschema.Definition{
 		Type: jsonschema.Object,
 		Properties: map[string]jsonschema.Definition{
-			"description": {
+			"newInstruction": {
 				Type: jsonschema.String,
-				Description: "The updated description for the currently active communication style. " +
-					"Use this when modifying or adding details to the active style without creating a new one. " +
-					"For example: 'Speak like a geek.'",
+				Description: "A new instruction to enhance the current communication style. " +
+					"For example: 'Add a touch of humor.' This instruction will be appended to the existing description.",
 			},
 		},
-		Required: []string{"description"},
+		Required: []string{"newInstruction"},
 	}
 }
 
 func (u *updateActiveChatStyle) Function() any {
-	return func(chatID int64, description string) (string, error) {
-		if err := u.styleRepo.UpdateActiveStyle(context.Background(), chatID, description); err != nil {
+	return func(chatID int64, newInstruction string) (string, error) {
+		if err := u.styleRepo.UpdateActiveStyle(context.Background(), chatID, newInstruction); err != nil {
 			return "", fmt.Errorf("updating active chat style for chat '%d': %v", chatID, err)
 		}
 		return "Стиль общения обновлен", nil

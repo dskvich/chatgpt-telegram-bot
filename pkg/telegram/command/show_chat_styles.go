@@ -60,17 +60,17 @@ func (s *showChatStyles) formatForTelegram(styles []domain.ChatStyle) string {
 
 	var sb strings.Builder
 	sb.WriteString("*Доступные стили общения:*\n\n")
-	sb.WriteString("```\n") // Code block for monospace formatting
 
-	// Generate table headers and underline
-	sb.WriteString(fmt.Sprintf("%-20s | %-50s\n", "Имя стиля", "Описание"))
-	sb.WriteString(strings.Repeat("-", 75) + "\n")
-
-	// Add each style to the table
 	for _, style := range styles {
-		sb.WriteString(fmt.Sprintf("%-20s | %-50s\n", style.Name, style.Description))
+		isActive := "Да"
+		if !style.IsActive {
+			isActive = "Нет"
+		}
+		sb.WriteString(fmt.Sprintf(
+			"Имя стиля: %s\nОписание: %s\nАктивный: %s\n\n",
+			style.Name, style.Description, isActive,
+		))
 	}
 
-	sb.WriteString("```\n") // End code block
 	return sb.String()
 }

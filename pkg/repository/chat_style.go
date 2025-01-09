@@ -133,39 +133,47 @@ func (r *chatStyleRepository) Activate(ctx context.Context, chatID int64, name s
 	return tx.Commit()
 }
 
-func (r *chatStyleRepository) UpdateActiveStyle(ctx context.Context, chatID int64, description string) error {
+func (r *chatStyleRepository) UpdateActiveStyle(ctx context.Context, chatID int64, newInstruction string) error {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
 	}
 
+	// Fetch the current description of the active style
+	var currentDescription string
+	err = tx.QueryRowContext(ctx, `
+        SELECT description
+        FROM chat_styles
+        WHERE chat_id = $1 AND is_active = TRUE
+    `, chatID).Scan(&currentDescription)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// No active style found, create a new one
+			_, err = tx.ExecContext(ctx, `
+                INSERT INTO chat_styles (chat_id, name, is_active, description, created_by)
+                VALUES ($1, 'default', TRUE, $2, '')
+            `, chatID, newInstruction)
+			if err != nil {
+				tx.Rollback()
+				return err
+			}
+			return tx.Commit()
+		}
+		tx.Rollback()
+		return err
+	}
+
+	updatedDescription := currentDescription + " " + newInstruction
+
 	// Update the description of the currently active style
-	result, err := tx.ExecContext(ctx, `
+	_, err = tx.ExecContext(ctx, `
         UPDATE chat_styles
         SET description = $1
         WHERE chat_id = $2 AND is_active = TRUE
-    `, description, chatID)
+    `, updatedDescription, chatID)
 	if err != nil {
 		tx.Rollback()
 		return err
-	}
-
-	affectedRows, err := result.RowsAffected()
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if affectedRows == 0 {
-		// No active style found, create a new one
-		_, err = tx.ExecContext(ctx, `
-            INSERT INTO chat_styles (chat_id, name, is_active, description, created_by)
-            VALUES ($1, 'default', TRUE, $2, '')
-        `, chatID, description)
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
 	}
 
 	return tx.Commit()
@@ -173,7 +181,7 @@ func (r *chatStyleRepository) UpdateActiveStyle(ctx context.Context, chatID int6
 
 func (r *chatStyleRepository) GetAllStyles(ctx context.Context, chatID int64) ([]domain.ChatStyle, error) {
 	query := `
-        SELECT name, description
+        SELECT name, description, is_active
         FROM chat_styles
         WHERE chat_id = $1
         ORDER BY created_at
@@ -188,7 +196,7 @@ func (r *chatStyleRepository) GetAllStyles(ctx context.Context, chatID int64) ([
 	var styles []domain.ChatStyle
 	for rows.Next() {
 		var style domain.ChatStyle
-		if err := rows.Scan(&style.Name, &style.Description); err != nil {
+		if err := rows.Scan(&style.Name, &style.Description, &style.IsActive); err != nil {
 			return nil, err
 		}
 		styles = append(styles, style)
