@@ -8,22 +8,13 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-// Service describes a service for the Links 'R' Us monolithic application.
 type Service interface {
-	// Name returns the service name.
 	Name() string
-
-	// Run executes the service and blocks until the context gets cancelled
-	// or an error occurs.
 	Run(context.Context) error
 }
 
-// Group is a list of Service instances that can execute in parallel.
 type Group []Service
 
-// Run executes all Service instances in the group using the provided context.
-// Calls to Run block until all service have completed executing either because
-// the context was cancelled or any of the service reported an error.
 func (g Group) Run(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -44,12 +35,9 @@ func (g Group) Run(ctx context.Context) error {
 		}(s)
 	}
 
-	// Keep running until the run context gets cancelled; then wait for
-	// all spawned service go-routines to exit
 	<-runCtx.Done()
 	wg.Wait()
 
-	// Collect and accumulate any reported errors.
 	var err error
 	close(errCh)
 	for srvErr := range errCh {
