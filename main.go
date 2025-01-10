@@ -121,7 +121,7 @@ func setupServices() (service.Group, error) {
 		command.NewShowChatStyles(telegramClient, chatStyleRepository),
 
 		// features
-		command.NewCompleteChat(openAIClient, chatRepository, telegramClient),
+		command.NewCompleteChat(openAIClient, telegramClient),
 		command.NewProcessVoice(telegramClient, &oggToMp3Converter, speechToTextConverter, openAIClient, imageGptClient, promptRepository, telegramClient),
 		command.NewDrawImage(imageGptClient, promptRepository, telegramClient),
 		command.NewCompleteImage(telegramClient, openAIClient, telegramClient),

@@ -9,31 +9,22 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
-const maxRunes = 4096
-
 type GptProvider interface {
 	CreateChatCompletion(chatID int64, text, base64image string) (string, error)
 }
 
-type ActiveChatRepository interface {
-	GetSession(chatID int64) (domain.ChatSession, bool)
-}
-
 type completeChat struct {
-	gptProvider    GptProvider
-	chatRepository ActiveChatRepository
-	client         TelegramClient
+	gptProvider GptProvider
+	client      TelegramClient
 }
 
 func NewCompleteChat(
 	gptProvider GptProvider,
-	chatRepository ActiveChatRepository,
 	client TelegramClient,
 ) *completeChat {
 	return &completeChat{
-		gptProvider:    gptProvider,
-		chatRepository: chatRepository,
-		client:         client,
+		gptProvider: gptProvider,
+		client:      client,
 	}
 }
 
@@ -42,10 +33,7 @@ func (c *completeChat) IsCommand(u *tgbotapi.Update) bool {
 		return false
 	}
 
-	session, _ := c.chatRepository.GetSession(u.Message.Chat.ID)
-
 	return u.Message.Text != "" &&
-		!session.AwaitingSettings &&
 		!strings.HasPrefix(u.Message.Text, "/") &&
 		!strings.Contains(strings.ToLower(u.Message.Text), "рисуй")
 }
