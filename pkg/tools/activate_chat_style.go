@@ -12,12 +12,12 @@ type ChatStyleActivateRepository interface {
 }
 
 type activateChatStyle struct {
-	styleRepo ChatStyleActivateRepository
+	repo ChatStyleActivateRepository
 }
 
-func NewActivateChatStyle(styleRepo ChatStyleActivateRepository) *activateChatStyle {
+func NewActivateChatStyle(repo ChatStyleActivateRepository) *activateChatStyle {
 	return &activateChatStyle{
-		styleRepo: styleRepo,
+		repo: repo,
 	}
 }
 
@@ -46,7 +46,7 @@ func (a *activateChatStyle) Parameters() jsonschema.Definition {
 // Function provides the logic to activate a chat style by retrieving and applying it.
 func (a *activateChatStyle) Function() any {
 	return func(chatID int64, name string) (string, error) {
-		if err := a.styleRepo.Activate(context.Background(), chatID, name); err != nil {
+		if err := a.repo.Activate(context.Background(), chatID, name); err != nil {
 			return "", fmt.Errorf("activating chat style '%s' for chat '%d': %v", name, chatID, err)
 		}
 
