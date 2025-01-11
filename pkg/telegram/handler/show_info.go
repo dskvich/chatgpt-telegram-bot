@@ -1,4 +1,4 @@
-package command
+package handler
 
 import (
 	"strings"
@@ -20,13 +20,13 @@ func NewShowInfo(
 	}
 }
 
-func (s *showInfo) IsCommand(u *tgbotapi.Update) bool {
+func (s *showInfo) CanHandleMessage(u *tgbotapi.Update) bool {
 	return u.Message != nil && (strings.HasPrefix(u.Message.Text, "/start") ||
 		strings.Contains(strings.ToLower(u.Message.Text), "что ты умеешь") ||
 		strings.Contains(strings.ToLower(u.Message.Text), "что ты можешь"))
 }
 
-func (s *showInfo) HandleCommand(u *tgbotapi.Update) {
+func (s *showInfo) HandleMessage(u *tgbotapi.Update) {
 	s.client.SendTextMessage(domain.TextMessage{
 		ChatID: u.Message.Chat.ID,
 		Text:   domain.WelcomeMessage,

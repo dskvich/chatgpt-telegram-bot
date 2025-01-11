@@ -1,4 +1,4 @@
-package command
+package handler
 
 import (
 	"context"
@@ -63,11 +63,11 @@ func NewProcessVoice(
 	}
 }
 
-func (p *processVoice) IsCommand(u *tgbotapi.Update) bool {
+func (p *processVoice) CanHandleMessage(u *tgbotapi.Update) bool {
 	return u.Message != nil && u.Message.Voice != nil
 }
 
-func (p *processVoice) HandleCommand(u *tgbotapi.Update) {
+func (p *processVoice) HandleMessage(u *tgbotapi.Update) {
 	chatID := u.Message.Chat.ID
 	messageID := u.Message.MessageID
 

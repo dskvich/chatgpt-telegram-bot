@@ -1,4 +1,4 @@
-package command
+package handler
 
 import "github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 

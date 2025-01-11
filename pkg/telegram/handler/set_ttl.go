@@ -1,4 +1,4 @@
-package command
+package handler
 
 import (
 	"fmt"
@@ -29,17 +29,17 @@ func NewSetTTL(
 	}
 }
 
-func (c *setTTL) IsCommand(u *tgbotapi.Update) bool {
+func (c *setTTL) CanHandleMessage(u *tgbotapi.Update) bool {
 	return u.Message != nil && strings.HasPrefix(strings.ToLower(u.Message.Text), "/ttl")
 }
 
-func (c *setTTL) HandleCommand(u *tgbotapi.Update) {
+func (c *setTTL) HandleMessage(u *tgbotapi.Update) {
 	c.client.SendTTLMessage(domain.TTLMessage{
 		ChatID: u.Message.Chat.ID,
 	})
 }
 
-func (c *setTTL) IsCallback(u *tgbotapi.Update) bool {
+func (c *setTTL) CanHandleCallback(u *tgbotapi.Update) bool {
 	return u.CallbackQuery != nil && strings.HasPrefix(u.CallbackQuery.Data, domain.SetChatTTLCallback)
 }
 

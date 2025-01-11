@@ -4,13 +4,13 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-type Command interface {
-	IsCommand(*tgbotapi.Update) bool
-	HandleCommand(*tgbotapi.Update)
+type MessageHandler interface {
+	CanHandleMessage(*tgbotapi.Update) bool
+	HandleMessage(*tgbotapi.Update)
 }
 
-type Callback interface {
-	IsCallback(*tgbotapi.Update) bool
+type CallbackHandler interface {
+	CanHandleCallback(*tgbotapi.Update) bool
 	HandleCallback(*tgbotapi.Update)
 }
 
@@ -26,11 +26,11 @@ func NewRouter(handlers []any) *router {
 
 func (r *router) Handle(update tgbotapi.Update) {
 	for _, h := range r.handlers {
-		if cmd, ok := h.(Command); ok && cmd.IsCommand(&update) {
-			cmd.HandleCommand(&update)
+		if cmd, ok := h.(MessageHandler); ok && cmd.CanHandleMessage(&update) {
+			cmd.HandleMessage(&update)
 			return
 		}
-		if cb, ok := h.(Callback); ok && cb.IsCallback(&update) {
+		if cb, ok := h.(CallbackHandler); ok && cb.CanHandleCallback(&update) {
 			cb.HandleCallback(&update)
 			return
 		}

@@ -1,4 +1,4 @@
-package command
+package handler
 
 import (
 	"context"
@@ -37,7 +37,7 @@ func NewDrawImage(
 	}
 }
 
-func (d *drawImage) IsCommand(u *tgbotapi.Update) bool {
+func (d *drawImage) CanHandleMessage(u *tgbotapi.Update) bool {
 	if u.Message == nil {
 		return false
 	}
@@ -45,7 +45,7 @@ func (d *drawImage) IsCommand(u *tgbotapi.Update) bool {
 		domain.CommandText(u.Message.Text).ContainsAny(domain.DrawKeywords)
 }
 
-func (d *drawImage) HandleCommand(u *tgbotapi.Update) {
+func (d *drawImage) HandleMessage(u *tgbotapi.Update) {
 	chatID := u.Message.Chat.ID
 	messageID := u.Message.MessageID
 	prompt := domain.CommandText(u.Message.Text).ExtractAfterKeywords(domain.DrawKeywords)
@@ -81,7 +81,7 @@ func (d *drawImage) generateAndSendImage(chatID int64, prompt string) {
 	})
 }
 
-func (d *drawImage) IsCallback(u *tgbotapi.Update) bool {
+func (d *drawImage) CanHandleCallback(u *tgbotapi.Update) bool {
 	return u.CallbackQuery != nil && strings.HasPrefix(u.CallbackQuery.Data, domain.RedrawCallback)
 }
 

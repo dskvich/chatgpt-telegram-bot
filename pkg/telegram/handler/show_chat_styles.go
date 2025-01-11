@@ -1,4 +1,4 @@
-package command
+package handler
 
 import (
 	"context"
@@ -30,11 +30,11 @@ func NewShowChatStyles(
 	}
 }
 
-func (s *showChatStyles) IsCommand(u *tgbotapi.Update) bool {
+func (s *showChatStyles) CanHandleMessage(u *tgbotapi.Update) bool {
 	return u.Message != nil && strings.HasPrefix(u.Message.Text, "/styles")
 }
 
-func (s *showChatStyles) HandleCommand(u *tgbotapi.Update) {
+func (s *showChatStyles) HandleMessage(u *tgbotapi.Update) {
 	styles, err := s.repo.GetAllStyles(context.Background(), u.Message.Chat.ID)
 	if err != nil {
 		slog.Error("failed to get chat styles", "chatId", u.Message.Chat.ID, logger.Err(err))

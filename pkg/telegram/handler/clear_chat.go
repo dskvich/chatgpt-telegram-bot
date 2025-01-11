@@ -1,4 +1,4 @@
-package command
+package handler
 
 import (
 	"strings"
@@ -23,11 +23,11 @@ func NewClearChat(remover MessagesRemover, client TelegramClient) *clearChat {
 		client:  client,
 	}
 }
-func (c *clearChat) IsCommand(u *tgbotapi.Update) bool {
+func (c *clearChat) CanHandleMessage(u *tgbotapi.Update) bool {
 	return u.Message != nil && strings.HasPrefix(strings.ToLower(u.Message.Text), "/new")
 }
 
-func (c *clearChat) HandleCommand(u *tgbotapi.Update) {
+func (c *clearChat) HandleMessage(u *tgbotapi.Update) {
 	c.remover.RemoveSession(u.Message.Chat.ID)
 
 	c.client.SendTextMessage(domain.TextMessage{

@@ -1,4 +1,4 @@
-package command
+package handler
 
 import (
 	"context"
@@ -31,11 +31,11 @@ func NewShowSettings(
 	}
 }
 
-func (s *showSettings) IsCommand(u *tgbotapi.Update) bool {
+func (s *showSettings) CanHandleMessage(u *tgbotapi.Update) bool {
 	return u.Message != nil && strings.HasPrefix(u.Message.Text, "/config")
 }
 
-func (s *showSettings) HandleCommand(u *tgbotapi.Update) {
+func (s *showSettings) HandleMessage(u *tgbotapi.Update) {
 	settings, err := s.repo.GetAll(context.Background(), u.Message.Chat.ID)
 	if err != nil {
 		slog.Error("failed to get chat settings", "chatId", u.Message.Chat.ID, logger.Err(err))

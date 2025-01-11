@@ -1,4 +1,4 @@
-package command
+package handler
 
 import (
 	"fmt"
@@ -34,7 +34,7 @@ func NewCompleteImage(
 	}
 }
 
-func (c *completeImage) IsCommand(u *tgbotapi.Update) bool {
+func (c *completeImage) CanHandleMessage(u *tgbotapi.Update) bool {
 	if u.Message == nil {
 		return false
 	}
@@ -42,7 +42,7 @@ func (c *completeImage) IsCommand(u *tgbotapi.Update) bool {
 	return len(u.Message.Photo) > 0
 }
 
-func (c *completeImage) HandleCommand(u *tgbotapi.Update) {
+func (c *completeImage) HandleMessage(u *tgbotapi.Update) {
 	chatID := u.Message.Chat.ID
 	caption := u.Message.Caption
 	photo := (u.Message.Photo)[len(u.Message.Photo)-1]

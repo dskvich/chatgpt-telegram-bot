@@ -1,4 +1,4 @@
-package command
+package handler
 
 import (
 	"context"
@@ -29,17 +29,17 @@ func NewSetImageStyle(
 	}
 }
 
-func (c *setImageStyle) IsCommand(u *tgbotapi.Update) bool {
+func (c *setImageStyle) CanHandleMessage(u *tgbotapi.Update) bool {
 	return u.Message != nil && strings.HasPrefix(strings.ToLower(u.Message.Text), "/image_style")
 }
 
-func (c *setImageStyle) HandleCommand(u *tgbotapi.Update) {
+func (c *setImageStyle) HandleMessage(u *tgbotapi.Update) {
 	c.client.SendImageStyleMessage(domain.TextMessage{
 		ChatID: u.Message.Chat.ID,
 	})
 }
 
-func (c *setImageStyle) IsCallback(u *tgbotapi.Update) bool {
+func (c *setImageStyle) CanHandleCallback(u *tgbotapi.Update) bool {
 	return u.CallbackQuery != nil && strings.HasPrefix(u.CallbackQuery.Data, domain.ImageStyleCallbackPrefix)
 }
 

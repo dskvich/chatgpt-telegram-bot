@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v9"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram/handler"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/auth"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/chatgpt"
@@ -20,7 +21,6 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/repository"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/service"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram/command"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/tools"
 )
 
@@ -112,18 +112,18 @@ func setupServices() (service.Group, error) {
 
 	handlers := []any{
 		// non ai commands
-		command.NewShowInfo(telegramClient),
-		command.NewClearChat(chatRepository, telegramClient),
-		command.NewSetTTL(telegramClient, chatRepository),
-		command.NewShowSettings(telegramClient, settingsRepository),
-		command.NewSetImageStyle(telegramClient, settingsRepository),
-		command.NewShowChatStyles(telegramClient, chatStyleRepository),
+		handler.NewShowInfo(telegramClient),
+		handler.NewClearChat(chatRepository, telegramClient),
+		handler.NewSetTTL(telegramClient, chatRepository),
+		handler.NewShowSettings(telegramClient, settingsRepository),
+		handler.NewSetImageStyle(telegramClient, settingsRepository),
+		handler.NewShowChatStyles(telegramClient, chatStyleRepository),
 
 		// features
-		command.NewCompleteChat(openAIClient, telegramClient),
-		command.NewProcessVoice(telegramClient, &oggToMp3Converter, speechToTextConverter, openAIClient, imageGptClient, promptRepository, telegramClient),
-		command.NewDrawImage(imageGptClient, promptRepository, telegramClient),
-		command.NewCompleteImage(telegramClient, openAIClient, telegramClient),
+		handler.NewCompleteChat(openAIClient, telegramClient),
+		handler.NewProcessVoice(telegramClient, &oggToMp3Converter, speechToTextConverter, openAIClient, imageGptClient, promptRepository, telegramClient),
+		handler.NewDrawImage(imageGptClient, promptRepository, telegramClient),
+		handler.NewCompleteImage(telegramClient, openAIClient, telegramClient),
 	}
 
 	updateHandler := telegram.NewRouter(handlers)

@@ -1,4 +1,4 @@
-package command
+package handler
 
 import (
 	"fmt"
@@ -28,7 +28,7 @@ func NewCompleteChat(
 	}
 }
 
-func (c *completeChat) IsCommand(u *tgbotapi.Update) bool {
+func (c *completeChat) CanHandleMessage(u *tgbotapi.Update) bool {
 	if u.Message == nil {
 		return false
 	}
@@ -38,7 +38,7 @@ func (c *completeChat) IsCommand(u *tgbotapi.Update) bool {
 		!strings.Contains(strings.ToLower(u.Message.Text), "рисуй")
 }
 
-func (c *completeChat) HandleCommand(u *tgbotapi.Update) {
+func (c *completeChat) HandleMessage(u *tgbotapi.Update) {
 	chatID := u.Message.Chat.ID
 
 	response, err := c.gptProvider.CreateChatCompletion(chatID, u.Message.Text, "")
