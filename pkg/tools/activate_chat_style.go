@@ -7,15 +7,15 @@ import (
 	"github.com/sashabaranov/go-openai/jsonschema"
 )
 
-type ActivateChatStyleRepository interface {
+type ChatStyleActivateRepository interface {
 	Activate(ctx context.Context, chatID int64, name string) error
 }
 
 type activateChatStyle struct {
-	styleRepo ActivateChatStyleRepository
+	styleRepo ChatStyleActivateRepository
 }
 
-func NewActivateChatStyle(styleRepo ActivateChatStyleRepository) *activateChatStyle {
+func NewActivateChatStyle(styleRepo ChatStyleActivateRepository) *activateChatStyle {
 	return &activateChatStyle{
 		styleRepo: styleRepo,
 	}

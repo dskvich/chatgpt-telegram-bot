@@ -7,17 +7,17 @@ import (
 	"github.com/sashabaranov/go-openai/jsonschema"
 )
 
-type UpdateActiveChatStyleRepository interface {
+type ChatStyleUpdateRepository interface {
 	UpdateActiveStyle(ctx context.Context, chatID int64, newInstruction string) error
 }
 
 type updateActiveChatStyle struct {
-	styleRepo UpdateActiveChatStyleRepository
+	repo ChatStyleUpdateRepository
 }
 
-func NewUpdateActiveChatStyle(styleRepo UpdateActiveChatStyleRepository) *updateActiveChatStyle {
+func NewUpdateActiveChatStyle(repo ChatStyleUpdateRepository) *updateActiveChatStyle {
 	return &updateActiveChatStyle{
-		styleRepo: styleRepo,
+		repo: repo,
 	}
 }
 
@@ -48,7 +48,7 @@ func (u *updateActiveChatStyle) Parameters() jsonschema.Definition {
 
 func (u *updateActiveChatStyle) Function() any {
 	return func(chatID int64, newInstruction string) (string, error) {
-		if err := u.styleRepo.UpdateActiveStyle(context.Background(), chatID, newInstruction); err != nil {
+		if err := u.repo.UpdateActiveStyle(context.Background(), chatID, newInstruction); err != nil {
 			return "", fmt.Errorf("updating active chat style for chat '%d': %v", chatID, err)
 		}
 		return "Стиль общения обновлен", nil

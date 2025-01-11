@@ -10,13 +10,17 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 )
 
-type getChatSettings struct {
-	repo ReadSettingsRepository
+type ChatSettingsGetRepository interface {
+	GetAll(ctx context.Context, chatID int64) (map[string]string, error)
 }
 
-func NewGetChatSettings(repo ReadSettingsRepository) *getChatSettings {
+type getChatSettings struct {
+	repo ChatSettingsGetRepository
+}
+
+func NewGetChatSettings(fetcher ChatSettingsGetRepository) *getChatSettings {
 	return &getChatSettings{
-		repo: repo,
+		repo: fetcher,
 	}
 }
 

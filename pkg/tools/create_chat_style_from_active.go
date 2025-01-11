@@ -7,17 +7,17 @@ import (
 	"github.com/sashabaranov/go-openai/jsonschema"
 )
 
-type CreateChatStyleFromActiveRepository interface {
+type ChatStyleCreateRepository interface {
 	NewStyleFromActive(ctx context.Context, chatID int64, name, createdBy string) error
 }
 
 type createChatStyleFromActive struct {
-	styleRepo CreateChatStyleFromActiveRepository
+	repo ChatStyleCreateRepository
 }
 
-func NewCreateChatStyleFromActive(styleRepo CreateChatStyleFromActiveRepository) *createChatStyleFromActive {
+func NewCreateChatStyleFromActive(repo ChatStyleCreateRepository) *createChatStyleFromActive {
 	return &createChatStyleFromActive{
-		styleRepo: styleRepo,
+		repo: repo,
 	}
 }
 
@@ -48,7 +48,7 @@ func (c *createChatStyleFromActive) Parameters() jsonschema.Definition {
 
 func (c *createChatStyleFromActive) Function() any {
 	return func(chatID int64, name string) (string, error) {
-		if err := c.styleRepo.NewStyleFromActive(context.Background(), chatID, name, "admin"); err != nil {
+		if err := c.repo.NewStyleFromActive(context.Background(), chatID, name, "admin"); err != nil {
 			return "", fmt.Errorf("creating new chat style from active for chat '%d': %v", chatID, err)
 		}
 		return fmt.Sprintf("Стиль общения '%s' создан.", name), nil

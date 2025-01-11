@@ -10,11 +10,14 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
+type ChatSettingsSaveRepository interface {
+	Save(ctx context.Context, chatID int64, key, value string) error
+}
 type setModel struct {
-	repo EditSettingsRepository
+	repo ChatSettingsSaveRepository
 }
 
-func NewSetModel(repo EditSettingsRepository) *setModel {
+func NewSetModel(repo ChatSettingsSaveRepository) *setModel {
 	return &setModel{
 		repo: repo,
 	}
