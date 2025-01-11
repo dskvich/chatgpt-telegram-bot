@@ -36,9 +36,8 @@ func main() {
 	slog.SetDefault(logger.New(slog.LevelDebug))
 
 	if err := runMain(); err != nil {
-
 		slog.Error("shutting down due to error", logger.Err(err))
-		return
+		os.Exit(1)
 	}
 	slog.Info("shutdown complete")
 }
