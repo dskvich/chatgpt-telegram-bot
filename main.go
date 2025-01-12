@@ -11,6 +11,7 @@ import (
 
 	"github.com/caarlos0/env/v9"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram/handler"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/workers"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/auth"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/chatgpt"
@@ -19,17 +20,18 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/openai"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/repository"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/service"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/tools"
 )
 
 type Config struct {
-	OpenAIToken               string  `env:"OPEN_AI_TOKEN,required"`
-	TelegramBotToken          string  `env:"TELEGRAM_BOT_TOKEN,required"`
-	TelegramAuthorizedUserIDs []int64 `env:"TELEGRAM_AUTHORIZED_USER_IDS" envSeparator:" "`
-	PgURL                     string  `env:"DATABASE_URL"`
-	PgHost                    string  `env:"DB_HOST" envDefault:"localhost:65432"`
+	OpenAIToken                           string        `env:"OPEN_AI_TOKEN,required"`
+	TelegramBotToken                      string        `env:"TELEGRAM_BOT_TOKEN,required"`
+	TelegramAuthorizedUserIDs             []int64       `env:"TELEGRAM_AUTHORIZED_USER_IDS" envSeparator:" "`
+	TelegramUpdateListenerPoolSize        int           `env:"TELEGRAM_UPDATE_LISTENER_POOL_SIZE" envDefault:"10"`
+	TelegramUpdateListenerPollingInterval time.Duration `env:"TELEGRAM_UPDATE_LISTENER_POLLING_INTERVAL" envDefault:"100ms"`
+	PgURL                                 string        `env:"DATABASE_URL"`
+	PgHost                                string        `env:"DB_HOST" envDefault:"localhost:65432"`
 }
 
 func main() {
@@ -43,7 +45,7 @@ func main() {
 }
 
 func runMain() error {
-	svcGroup, err := setupServices()
+	workerGroup, err := setupWorkers()
 	if err != nil {
 		return err
 	}
@@ -62,17 +64,17 @@ func runMain() error {
 		}
 	}()
 
-	return svcGroup.Run(ctx)
+	return workerGroup.Start(ctx)
 }
 
-func setupServices() (service.Group, error) {
+func setupWorkers() (workers.Group, error) {
 	cfg := Config{}
 	if err := env.Parse(&cfg); err != nil {
 		return nil, fmt.Errorf("parsing env config: %v", err)
 	}
 
-	var svc service.Service
-	var svcGroup service.Group
+	var worker workers.Worker
+	var workerGroup workers.Group
 
 	telegramClient, err := telegram.NewClient(cfg.TelegramBotToken)
 	if err != nil {
@@ -126,13 +128,17 @@ func setupServices() (service.Group, error) {
 		handler.NewCompleteImage(telegramClient, openAIClient, telegramClient),
 	}
 
-	updateHandler := telegram.NewRouter(handlers)
-
-	if svc, err = service.NewTelegramListener(telegramClient, authenticator, updateHandler); err == nil {
-		svcGroup = append(svcGroup, svc)
+	if worker, err = workers.NewTelegramUpdateListener(
+		telegramClient,
+		authenticator,
+		handlers,
+		cfg.TelegramUpdateListenerPoolSize,
+		cfg.TelegramUpdateListenerPollingInterval,
+	); err == nil {
+		workerGroup = append(workerGroup, worker)
 	} else {
 		return nil, err
 	}
 
-	return svcGroup, nil
+	return workerGroup, nil
 }

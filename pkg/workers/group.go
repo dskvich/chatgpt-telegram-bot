@@ -1,4 +1,4 @@
-package service
+package workers
 
 import (
 	"context"
@@ -8,34 +8,34 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-type Service interface {
+type Worker interface {
 	Name() string
-	Run(context.Context) error
+	Start(context.Context) error
 }
 
-type Group []Service
+type Group []Worker
 
-func (g Group) Run(ctx context.Context) error {
+func (g Group) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	runCtx, cancelFn := context.WithCancel(ctx)
+	startCtx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(g))
 	wg.Add(len(g))
 	for _, s := range g {
-		go func(s Service) {
+		go func(s Worker) {
 			defer wg.Done()
-			if err := s.Run(runCtx); err != nil {
+			if err := s.Start(startCtx); err != nil {
 				errCh <- fmt.Errorf("%s: %w", s.Name(), err)
 				cancelFn()
 			}
 		}(s)
 	}
 
-	<-runCtx.Done()
+	<-startCtx.Done()
 	wg.Wait()
 
 	var err error
