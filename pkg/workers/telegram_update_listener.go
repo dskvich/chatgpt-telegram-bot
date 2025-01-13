@@ -11,14 +11,9 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
-type MessageHandler interface {
-	CanHandleMessage(*tgbotapi.Update) bool
-	HandleMessage(*tgbotapi.Update)
-}
-
-type CallbackHandler interface {
-	CanHandleCallback(*tgbotapi.Update) bool
-	HandleCallback(*tgbotapi.Update)
+type Handler interface {
+	CanHandle(*tgbotapi.Update) bool
+	Handle(*tgbotapi.Update)
 }
 
 type Authenticator interface {
@@ -33,7 +28,7 @@ type TelegramClient interface {
 type telegramUpdateListener struct {
 	client          TelegramClient
 	authenticator   Authenticator
-	handlers        []any
+	handlers        []Handler
 	poolSize        int
 	pollingInterval time.Duration
 }
@@ -41,7 +36,7 @@ type telegramUpdateListener struct {
 func NewTelegramUpdateListener(
 	client TelegramClient,
 	authenticator Authenticator,
-	handlers []any,
+	handlers []Handler,
 	poolSize int,
 	pollingInterval time.Duration,
 ) (*telegramUpdateListener, error) {
@@ -98,12 +93,8 @@ func (t *telegramUpdateListener) processUpdate(update tgbotapi.Update) {
 	}
 
 	for _, h := range t.handlers {
-		if cmd, ok := h.(MessageHandler); ok && cmd.CanHandleMessage(&update) {
-			cmd.HandleMessage(&update)
-			return
-		}
-		if cb, ok := h.(CallbackHandler); ok && cb.CanHandleCallback(&update) {
-			cb.HandleCallback(&update)
+		if h.CanHandle(&update) {
+			h.Handle(&update)
 			return
 		}
 	}

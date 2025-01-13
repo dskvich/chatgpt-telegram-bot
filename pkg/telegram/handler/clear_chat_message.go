@@ -12,22 +12,22 @@ type MessagesRemover interface {
 	RemoveSession(chatID int64)
 }
 
-type clearChat struct {
+type clearChatMessage struct {
 	remover MessagesRemover
 	client  TelegramClient
 }
 
-func NewClearChat(remover MessagesRemover, client TelegramClient) *clearChat {
-	return &clearChat{
+func NewClearChatMessage(remover MessagesRemover, client TelegramClient) *clearChatMessage {
+	return &clearChatMessage{
 		remover: remover,
 		client:  client,
 	}
 }
-func (c *clearChat) CanHandleMessage(u *tgbotapi.Update) bool {
+func (_ *clearChatMessage) CanHandle(u *tgbotapi.Update) bool {
 	return u.Message != nil && strings.HasPrefix(strings.ToLower(u.Message.Text), "/new")
 }
 
-func (c *clearChat) HandleMessage(u *tgbotapi.Update) {
+func (c *clearChatMessage) Handle(u *tgbotapi.Update) {
 	c.remover.RemoveSession(u.Message.Chat.ID)
 
 	c.client.SendTextMessage(domain.TextMessage{

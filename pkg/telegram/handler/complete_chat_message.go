@@ -13,22 +13,22 @@ type GptProvider interface {
 	CreateChatCompletion(chatID int64, text, base64image string) (string, error)
 }
 
-type completeChat struct {
+type completeChatMessage struct {
 	gptProvider GptProvider
 	client      TelegramClient
 }
 
-func NewCompleteChat(
+func NewCompleteChatMessage(
 	gptProvider GptProvider,
 	client TelegramClient,
-) *completeChat {
-	return &completeChat{
+) *completeChatMessage {
+	return &completeChatMessage{
 		gptProvider: gptProvider,
 		client:      client,
 	}
 }
 
-func (c *completeChat) CanHandleMessage(u *tgbotapi.Update) bool {
+func (_ *completeChatMessage) CanHandle(u *tgbotapi.Update) bool {
 	if u.Message == nil {
 		return false
 	}
@@ -38,7 +38,7 @@ func (c *completeChat) CanHandleMessage(u *tgbotapi.Update) bool {
 		!strings.Contains(strings.ToLower(u.Message.Text), "рисуй")
 }
 
-func (c *completeChat) HandleMessage(u *tgbotapi.Update) {
+func (c *completeChatMessage) Handle(u *tgbotapi.Update) {
 	chatID := u.Message.Chat.ID
 
 	response, err := c.gptProvider.CreateChatCompletion(chatID, u.Message.Text, "")

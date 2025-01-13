@@ -14,61 +14,51 @@ type ImageStyleSetter interface {
 	Save(ctx context.Context, chatID int64, key, value string) error
 }
 
-type setImageStyle struct {
+type setImageStyleCallback struct {
 	client TelegramClient
 	setter ImageStyleSetter
 }
 
-func NewSetImageStyle(
+func NewSetImageStyleCallback(
 	client TelegramClient,
 	setter ImageStyleSetter,
-) *setImageStyle {
-	return &setImageStyle{
+) *setImageStyleCallback {
+	return &setImageStyleCallback{
 		client: client,
 		setter: setter,
 	}
 }
 
-func (c *setImageStyle) CanHandleMessage(u *tgbotapi.Update) bool {
-	return u.Message != nil && strings.HasPrefix(strings.ToLower(u.Message.Text), "/image_style")
-}
-
-func (c *setImageStyle) HandleMessage(u *tgbotapi.Update) {
-	c.client.SendImageStyleMessage(domain.TextMessage{
-		ChatID: u.Message.Chat.ID,
-	})
-}
-
-func (c *setImageStyle) CanHandleCallback(u *tgbotapi.Update) bool {
+func (_ *setImageStyleCallback) CanHandle(u *tgbotapi.Update) bool {
 	return u.CallbackQuery != nil && strings.HasPrefix(u.CallbackQuery.Data, domain.ImageStyleCallbackPrefix)
 }
 
-func (c *setImageStyle) HandleCallback(u *tgbotapi.Update) {
+func (s *setImageStyleCallback) Handle(u *tgbotapi.Update) {
 	chatID := u.CallbackQuery.Message.Chat.ID
 	callbackQueryID := u.CallbackQuery.ID
 
-	imageStyle, err := c.parseImageStyle(u.CallbackQuery.Data)
+	imageStyle, err := s.parseImageStyle(u.CallbackQuery.Data)
 	if err != nil {
-		c.client.SendTextMessage(domain.TextMessage{
+		s.client.SendTextMessage(domain.TextMessage{
 			ChatID: chatID,
 			Text:   err.Error(),
 		})
 		return
 	}
 
-	c.setter.Save(context.Background(), chatID, domain.ImageStyleKey, imageStyle)
+	s.setter.Save(context.Background(), chatID, domain.ImageStyleKey, imageStyle)
 
-	c.client.SendCallbackMessage(domain.CallbackMessage{
+	s.client.SendCallbackMessage(domain.CallbackMessage{
 		CallbackQueryID: callbackQueryID,
 	})
 
-	c.client.SendTextMessage(domain.TextMessage{
+	s.client.SendTextMessage(domain.TextMessage{
 		ChatID: chatID,
 		Text:   fmt.Sprintf("Стиль изображения успешно установлен: %v", imageStyle),
 	})
 }
 
-func (c *setImageStyle) parseImageStyle(data string) (string, error) {
+func (_ *setImageStyleCallback) parseImageStyle(data string) (string, error) {
 	if !strings.HasPrefix(data, domain.ImageStyleCallbackPrefix) {
 		return "", fmt.Errorf("unknown Image Style option: invalid prefix")
 	}

@@ -14,51 +14,41 @@ type TTLSetter interface {
 	SetTTL(chatID int64, ttl time.Duration)
 }
 
-type setTTL struct {
+type setTTLCallback struct {
 	client    TelegramClient
 	ttlSetter TTLSetter
 }
 
-func NewSetTTL(
+func NewSetTTLCallback(
 	client TelegramClient,
 	ttlSetter TTLSetter,
-) *setTTL {
-	return &setTTL{
+) *setTTLCallback {
+	return &setTTLCallback{
 		client:    client,
 		ttlSetter: ttlSetter,
 	}
 }
 
-func (c *setTTL) CanHandleMessage(u *tgbotapi.Update) bool {
-	return u.Message != nil && strings.HasPrefix(strings.ToLower(u.Message.Text), "/ttl")
-}
-
-func (c *setTTL) HandleMessage(u *tgbotapi.Update) {
-	c.client.SendTTLMessage(domain.TTLMessage{
-		ChatID: u.Message.Chat.ID,
-	})
-}
-
-func (c *setTTL) CanHandleCallback(u *tgbotapi.Update) bool {
+func (_ *setTTLCallback) CanHandle(u *tgbotapi.Update) bool {
 	return u.CallbackQuery != nil && strings.HasPrefix(u.CallbackQuery.Data, domain.SetChatTTLCallback)
 }
 
-func (c *setTTL) HandleCallback(u *tgbotapi.Update) {
+func (s *setTTLCallback) Handle(u *tgbotapi.Update) {
 	chatID := u.CallbackQuery.Message.Chat.ID
 	callbackQueryID := u.CallbackQuery.ID
 
-	ttl, err := c.parseTTL(u.CallbackQuery.Data)
+	ttl, err := s.parseTTL(u.CallbackQuery.Data)
 	if err != nil {
-		c.client.SendTextMessage(domain.TextMessage{
+		s.client.SendTextMessage(domain.TextMessage{
 			ChatID: chatID,
 			Text:   "Unknown TTL option selected.",
 		})
 		return
 	}
 
-	c.ttlSetter.SetTTL(chatID, ttl)
+	s.ttlSetter.SetTTL(chatID, ttl)
 
-	c.client.SendCallbackMessage(domain.CallbackMessage{
+	s.client.SendCallbackMessage(domain.CallbackMessage{
 		CallbackQueryID: callbackQueryID,
 	})
 
@@ -67,13 +57,13 @@ func (c *setTTL) HandleCallback(u *tgbotapi.Update) {
 		ttlText = fmt.Sprintf("%v", ttl)
 	}
 
-	c.client.SendTextMessage(domain.TextMessage{
+	s.client.SendTextMessage(domain.TextMessage{
 		ChatID: chatID,
 		Text:   fmt.Sprintf("Set TTL to %v", ttlText),
 	})
 }
 
-func (c *setTTL) parseTTL(data string) (time.Duration, error) {
+func (_ *setTTLCallback) parseTTL(data string) (time.Duration, error) {
 	switch data {
 	case "ttl_15m":
 		return 15 * time.Minute, nil

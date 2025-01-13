@@ -33,7 +33,7 @@ type VoicePromptSaver interface {
 	SavePrompt(ctx context.Context, p *domain.Prompt) error
 }
 
-type processVoice struct {
+type completeVoiceMessage struct {
 	downloader     FileDownloader
 	converter      AudioConverter
 	transcriber    SpeechTranscriber
@@ -43,7 +43,7 @@ type processVoice struct {
 	client         TelegramClient
 }
 
-func NewProcessVoice(
+func NewCompleteVoiceMessage(
 	downloader FileDownloader,
 	converter AudioConverter,
 	transcriber SpeechTranscriber,
@@ -51,8 +51,8 @@ func NewProcessVoice(
 	imageGenerator GptImageResponseGenerator,
 	saver VoicePromptSaver,
 	client TelegramClient,
-) *processVoice {
-	return &processVoice{
+) *completeVoiceMessage {
+	return &completeVoiceMessage{
 		downloader:     downloader,
 		converter:      converter,
 		transcriber:    transcriber,
@@ -63,55 +63,55 @@ func NewProcessVoice(
 	}
 }
 
-func (p *processVoice) CanHandleMessage(u *tgbotapi.Update) bool {
+func (_ *completeVoiceMessage) CanHandle(u *tgbotapi.Update) bool {
 	return u.Message != nil && u.Message.Voice != nil
 }
 
-func (p *processVoice) HandleMessage(u *tgbotapi.Update) {
+func (c *completeVoiceMessage) Handle(u *tgbotapi.Update) {
 	chatID := u.Message.Chat.ID
 	messageID := u.Message.MessageID
 
-	filePath, err := p.downloader.DownloadFile(u.Message.Voice.FileID)
+	filePath, err := c.downloader.DownloadFile(u.Message.Voice.FileID)
 	if err != nil {
-		p.client.SendTextMessage(domain.TextMessage{
+		c.client.SendTextMessage(domain.TextMessage{
 			ChatID: chatID,
-			Text:   fmt.Sprintf("Failed to download audio file: %p", err),
+			Text:   fmt.Sprintf("Failed to download audio file: %c", err),
 		})
 		return
 	}
 
-	mp3FilePath, err := p.converter.ConvertToMP3(filePath)
+	mp3FilePath, err := c.converter.ConvertToMP3(filePath)
 	if err != nil {
-		p.client.SendTextMessage(domain.TextMessage{
+		c.client.SendTextMessage(domain.TextMessage{
 			ChatID: chatID,
-			Text:   fmt.Sprintf("Failed to convert audio file: %p", err),
+			Text:   fmt.Sprintf("Failed to convert audio file: %c", err),
 		})
 		return
 	}
 
-	prompt, err := p.transcriber.SpeechToText(mp3FilePath)
+	prompt, err := c.transcriber.SpeechToText(mp3FilePath)
 	if err != nil {
-		p.client.SendTextMessage(domain.TextMessage{
+		c.client.SendTextMessage(domain.TextMessage{
 			ChatID: chatID,
-			Text:   fmt.Sprintf("Failed to transcribe audio file: %p", err),
+			Text:   fmt.Sprintf("Failed to transcribe audio file: %c", err),
 		})
 		return
 	}
 
-	p.client.SendTextMessage(domain.TextMessage{
+	c.client.SendTextMessage(domain.TextMessage{
 		ChatID: chatID,
 		Text:   fmt.Sprintf("🎤 %s", prompt),
 	})
 
-	if err := p.saver.SavePrompt(context.Background(), &domain.Prompt{
+	if err := c.saver.SavePrompt(context.Background(), &domain.Prompt{
 		ChatID:    chatID,
 		MessageID: messageID,
 		Text:      prompt,
 		FromUser:  fmt.Sprintf("%s %s", u.Message.From.FirstName, u.Message.From.LastName),
 	}); err != nil {
-		p.client.SendTextMessage(domain.TextMessage{
+		c.client.SendTextMessage(domain.TextMessage{
 			ChatID: chatID,
-			Text:   fmt.Sprintf("Failed to save prompt: %p", err),
+			Text:   fmt.Sprintf("Failed to save prompt: %c", err),
 		})
 	}
 
@@ -119,28 +119,28 @@ func (p *processVoice) HandleMessage(u *tgbotapi.Update) {
 	if commandText.ContainsAny(domain.DrawKeywords) {
 		prompt = commandText.ExtractAfterKeywords(domain.DrawKeywords)
 
-		imgBytes, err := p.imageGenerator.GenerateImage(chatID, prompt)
+		imgBytes, err := c.imageGenerator.GenerateImage(chatID, prompt)
 		if err != nil {
-			p.client.SendTextMessage(domain.TextMessage{
+			c.client.SendTextMessage(domain.TextMessage{
 				ChatID: chatID,
-				Text:   fmt.Sprintf("Failed to generate image using Dall-E: %p", err),
+				Text:   fmt.Sprintf("Failed to generate image using Dall-E: %c", err),
 			})
 			return
 		}
 
-		p.client.SendImageMessage(domain.ImageMessage{
+		c.client.SendImageMessage(domain.ImageMessage{
 			ChatID: chatID,
 			Bytes:  imgBytes,
 		})
 		return
 	}
 
-	response, err := p.textGenerator.CreateChatCompletion(u.Message.Chat.ID, prompt, "")
+	response, err := c.textGenerator.CreateChatCompletion(u.Message.Chat.ID, prompt, "")
 	if err != nil {
-		response = fmt.Sprintf("Failed to get chat completion: %p", err)
+		response = fmt.Sprintf("Failed to get chat completion: %c", err)
 	}
 
-	p.client.SendTextMessage(domain.TextMessage{
+	c.client.SendTextMessage(domain.TextMessage{
 		ChatID: chatID,
 		Text:   response,
 	})

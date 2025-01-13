@@ -37,7 +37,7 @@ func NewDrawImage(
 	}
 }
 
-func (d *drawImage) CanHandleMessage(u *tgbotapi.Update) bool {
+func (_ *drawImage) CanHandle(u *tgbotapi.Update) bool {
 	if u.Message == nil {
 		return false
 	}
@@ -45,7 +45,7 @@ func (d *drawImage) CanHandleMessage(u *tgbotapi.Update) bool {
 		domain.CommandText(u.Message.Text).ContainsAny(domain.DrawKeywords)
 }
 
-func (d *drawImage) HandleMessage(u *tgbotapi.Update) {
+func (d *drawImage) Handle(u *tgbotapi.Update) {
 	chatID := u.Message.Chat.ID
 	messageID := u.Message.MessageID
 	prompt := domain.CommandText(u.Message.Text).ExtractAfterKeywords(domain.DrawKeywords)
@@ -78,38 +78,5 @@ func (d *drawImage) generateAndSendImage(chatID int64, prompt string) {
 	d.client.SendImageMessage(domain.ImageMessage{
 		ChatID: chatID,
 		Bytes:  imgBytes,
-	})
-}
-
-func (d *drawImage) CanHandleCallback(u *tgbotapi.Update) bool {
-	return u.CallbackQuery != nil && strings.HasPrefix(u.CallbackQuery.Data, domain.RedrawCallback)
-}
-
-func (d *drawImage) HandleCallback(u *tgbotapi.Update) {
-	chatID := u.CallbackQuery.Message.Chat.ID
-	messageID := u.CallbackQuery.Message.ReplyToMessage.MessageID
-	//TODO: panics after removing replyTo... need to get initial request from another place
-
-	prompt, err := d.storage.FetchPrompt(context.Background(), chatID, messageID)
-	if err != nil {
-		d.client.SendTextMessage(domain.TextMessage{
-			ChatID: chatID,
-			Text:   fmt.Sprintf("Failed to fetch prompt: %v", err),
-		})
-		return
-	}
-
-	if prompt == nil {
-		d.client.SendTextMessage(domain.TextMessage{
-			ChatID: chatID,
-			Text:   "Sorry, I can't find the original request for generating a similar image. Please try again.",
-		})
-		return
-	}
-
-	d.generateAndSendImage(chatID, prompt.Text)
-
-	d.client.SendCallbackMessage(domain.CallbackMessage{
-		CallbackQueryID: u.CallbackQuery.ID,
 	})
 }

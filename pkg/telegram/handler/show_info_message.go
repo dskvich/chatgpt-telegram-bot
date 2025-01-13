@@ -8,25 +8,25 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
-type showInfo struct {
+type showInfoMessage struct {
 	client TelegramClient
 }
 
-func NewShowInfo(
+func NewShowInfoMessage(
 	client TelegramClient,
-) *showInfo {
-	return &showInfo{
+) *showInfoMessage {
+	return &showInfoMessage{
 		client: client,
 	}
 }
 
-func (s *showInfo) CanHandleMessage(u *tgbotapi.Update) bool {
+func (_ *showInfoMessage) CanHandle(u *tgbotapi.Update) bool {
 	return u.Message != nil && (strings.HasPrefix(u.Message.Text, "/start") ||
 		strings.Contains(strings.ToLower(u.Message.Text), "что ты умеешь") ||
 		strings.Contains(strings.ToLower(u.Message.Text), "что ты можешь"))
 }
 
-func (s *showInfo) HandleMessage(u *tgbotapi.Update) {
+func (s *showInfoMessage) Handle(u *tgbotapi.Update) {
 	s.client.SendTextMessage(domain.TextMessage{
 		ChatID: u.Message.Chat.ID,
 		Text:   domain.WelcomeMessage,

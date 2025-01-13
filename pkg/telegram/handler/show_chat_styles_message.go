@@ -15,26 +15,26 @@ type ChatStyleRepository interface {
 	GetAllStyles(ctx context.Context, chatID int64) ([]domain.ChatStyle, error)
 }
 
-type showChatStyles struct {
+type showChatStylesMessage struct {
 	client TelegramClient
 	repo   ChatStyleRepository
 }
 
-func NewShowChatStyles(
+func NewShowChatStylesMessage(
 	client TelegramClient,
 	repo ChatStyleRepository,
-) *showChatStyles {
-	return &showChatStyles{
+) *showChatStylesMessage {
+	return &showChatStylesMessage{
 		client: client,
 		repo:   repo,
 	}
 }
 
-func (s *showChatStyles) CanHandleMessage(u *tgbotapi.Update) bool {
+func (_ *showChatStylesMessage) CanHandle(u *tgbotapi.Update) bool {
 	return u.Message != nil && strings.HasPrefix(u.Message.Text, "/styles")
 }
 
-func (s *showChatStyles) HandleMessage(u *tgbotapi.Update) {
+func (s *showChatStylesMessage) Handle(u *tgbotapi.Update) {
 	styles, err := s.repo.GetAllStyles(context.Background(), u.Message.Chat.ID)
 	if err != nil {
 		slog.Error("failed to get chat styles", "chatId", u.Message.Chat.ID, logger.Err(err))
@@ -53,7 +53,7 @@ func (s *showChatStyles) HandleMessage(u *tgbotapi.Update) {
 	})
 }
 
-func (s *showChatStyles) formatForTelegram(styles []domain.ChatStyle) string {
+func (_ *showChatStylesMessage) formatForTelegram(styles []domain.ChatStyle) string {
 	if len(styles) == 0 {
 		return "Нет доступных стилей общения для данного чата."
 	}

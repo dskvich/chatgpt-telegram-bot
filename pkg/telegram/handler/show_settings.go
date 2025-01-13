@@ -16,26 +16,26 @@ type ReadSettingsRepository interface {
 	GetAll(ctx context.Context, chatID int64) (map[string]string, error)
 }
 
-type showSettings struct {
+type showSettingsMessage struct {
 	client TelegramClient
 	repo   ReadSettingsRepository
 }
 
-func NewShowSettings(
+func NewShowSettingsMessage(
 	client TelegramClient,
 	repo ReadSettingsRepository,
-) *showSettings {
-	return &showSettings{
+) *showSettingsMessage {
+	return &showSettingsMessage{
 		client: client,
 		repo:   repo,
 	}
 }
 
-func (s *showSettings) CanHandleMessage(u *tgbotapi.Update) bool {
+func (_ *showSettingsMessage) CanHandle(u *tgbotapi.Update) bool {
 	return u.Message != nil && strings.HasPrefix(u.Message.Text, "/config")
 }
 
-func (s *showSettings) HandleMessage(u *tgbotapi.Update) {
+func (s *showSettingsMessage) Handle(u *tgbotapi.Update) {
 	settings, err := s.repo.GetAll(context.Background(), u.Message.Chat.ID)
 	if err != nil {
 		slog.Error("failed to get chat settings", "chatId", u.Message.Chat.ID, logger.Err(err))
@@ -49,7 +49,7 @@ func (s *showSettings) HandleMessage(u *tgbotapi.Update) {
 	})
 }
 
-func (s *showSettings) formatForTelegram(data map[string]string) string {
+func (_ *showSettingsMessage) formatForTelegram(data map[string]string) string {
 	var sb strings.Builder
 	sb.WriteString("*Системные настройки:*\n\n")
 	sb.WriteString("```\n") // Code block for monospace formatting

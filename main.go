@@ -101,8 +101,7 @@ func setupWorkers() (workers.Group, error) {
 		tools.NewActivateChatStyle(chatStyleRepository),
 	}
 
-	//TODO rename textGptClient to openAiClient
-	openAIClient, err := openai.NewClient(cfg.OpenAIToken, chatRepository, settingsRepository, chatStyleRepository, tools)
+	openAiClient, err := openai.NewClient(cfg.OpenAIToken, chatRepository, settingsRepository, chatStyleRepository, tools)
 	if err != nil {
 		return nil, fmt.Errorf("creating open ai client: %v", err)
 	}
@@ -112,20 +111,23 @@ func setupWorkers() (workers.Group, error) {
 	oggToMp3Converter := converter.OggTomp3{}
 	speechToTextConverter := converter.NewSpeechToText(audioGptClient)
 
-	handlers := []any{
+	handlers := []workers.Handler{
 		// non ai commands
-		handler.NewShowInfo(telegramClient),
-		handler.NewClearChat(chatRepository, telegramClient),
-		handler.NewSetTTL(telegramClient, chatRepository),
-		handler.NewShowSettings(telegramClient, settingsRepository),
-		handler.NewSetImageStyle(telegramClient, settingsRepository),
-		handler.NewShowChatStyles(telegramClient, chatStyleRepository),
+		handler.NewShowInfoMessage(telegramClient),
+		handler.NewClearChatMessage(chatRepository, telegramClient),
+		handler.NewSetTTL(telegramClient),
+		handler.NewSetTTLCallback(telegramClient, chatRepository),
+		handler.NewShowSettingsMessage(telegramClient, settingsRepository),
+		handler.NewSetImageStyleMessage(telegramClient),
+		handler.NewSetImageStyleCallback(telegramClient, settingsRepository),
+		handler.NewShowChatStylesMessage(telegramClient, chatStyleRepository),
 
-		// features
-		handler.NewCompleteChat(openAIClient, telegramClient),
-		handler.NewProcessVoice(telegramClient, &oggToMp3Converter, speechToTextConverter, openAIClient, imageGptClient, promptRepository, telegramClient),
+		// ai commands
+		handler.NewCompleteChatMessage(openAiClient, telegramClient),
+		handler.NewCompleteVoiceMessage(telegramClient, &oggToMp3Converter, speechToTextConverter, openAiClient, imageGptClient, promptRepository, telegramClient),
 		handler.NewDrawImage(imageGptClient, promptRepository, telegramClient),
-		handler.NewCompleteImage(telegramClient, openAIClient, telegramClient),
+		handler.NewDrawImageCallback(imageGptClient, promptRepository, telegramClient),
+		handler.NewCompleteImageMessage(telegramClient, openAiClient, telegramClient),
 	}
 
 	if worker, err = workers.NewTelegramUpdateListener(
