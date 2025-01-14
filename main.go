@@ -94,6 +94,7 @@ func setupWorkers() (workers.Group, error) {
 
 	// Initialize tools
 	tools := []openai.ToolFunction{
+
 		tools.NewGetChatSettings(settingsRepository),
 		tools.NewSetModel(settingsRepository),
 		tools.NewUpdateActiveChatStyle(chatStyleRepository),
