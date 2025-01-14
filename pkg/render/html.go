@@ -48,7 +48,7 @@ func (hr *htmlRenderer) HRule(out *bytes.Buffer) {
 
 func (hr *htmlRenderer) BlockQuote(out *bytes.Buffer, text []byte) {
 	out.WriteString("> ")
-	out.WriteString(html.EscapeString(string(text)))
+	out.Write(text)
 	out.WriteByte('\n')
 }
 
@@ -62,7 +62,7 @@ func (hr *htmlRenderer) List(out *bytes.Buffer, text func() bool, flags int) {
 
 func (hr *htmlRenderer) ListItem(out *bytes.Buffer, text []byte, flags int) {
 	out.WriteString("- ")
-	out.WriteString(html.EscapeString(string(text)))
+	out.Write(text)
 	out.WriteByte('\n')
 }
 
