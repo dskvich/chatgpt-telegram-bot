@@ -33,7 +33,7 @@ func NewDrawImageMessage(
 	}
 }
 
-func (_ *drawImageMessage) CanHandle(u *tgbotapi.Update) bool {
+func (*drawImageMessage) CanHandle(u *tgbotapi.Update) bool {
 	if u.Message == nil {
 		return false
 	}

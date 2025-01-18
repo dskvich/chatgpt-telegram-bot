@@ -33,7 +33,7 @@ func NewDrawImageCallback(
 	}
 }
 
-func (_ *drawImageCallback) CanHandle(u *tgbotapi.Update) bool {
+func (*drawImageCallback) CanHandle(u *tgbotapi.Update) bool {
 	return u.CallbackQuery != nil && strings.HasPrefix(u.CallbackQuery.Data, domain.RedrawCallback)
 }
 

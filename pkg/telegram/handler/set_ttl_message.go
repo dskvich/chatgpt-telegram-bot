@@ -20,7 +20,7 @@ func NewSetTTLMessage(
 	}
 }
 
-func (_ *setTTLMessage) CanHandle(u *tgbotapi.Update) bool {
+func (*setTTLMessage) CanHandle(u *tgbotapi.Update) bool {
 	return u.Message != nil && strings.HasPrefix(strings.ToLower(u.Message.Text), "/ttl")
 }
 

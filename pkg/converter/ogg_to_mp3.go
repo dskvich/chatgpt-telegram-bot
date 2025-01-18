@@ -22,7 +22,7 @@ func (o *OggTomp3) ConvertToMP3(inputPath string) (string, error) {
 		outputPath, err = convertAudioToMp3(inputPath)
 		defer os.Remove(inputPath)
 		if err != nil {
-			return "", fmt.Errorf("converting file: %v", err)
+			return "", fmt.Errorf("converting file: %w", err)
 		}
 	}
 
@@ -41,7 +41,7 @@ func convertAudioToMp3(filePath string) (string, error) {
 	cmd := exec.Command("ffmpeg", "-i", filePath, newFilePath)
 	_, err := cmd.CombinedOutput()
 	if err != nil {
-		return newFilePath, fmt.Errorf("running `ffmpeg`: %v", err)
+		return newFilePath, fmt.Errorf("running `ffmpeg`: %w", err)
 	}
 
 	return newFilePath, nil

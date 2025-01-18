@@ -29,7 +29,7 @@ func NewSetImageStyleCallback(
 	}
 }
 
-func (_ *setImageStyleCallback) CanHandle(u *tgbotapi.Update) bool {
+func (*setImageStyleCallback) CanHandle(u *tgbotapi.Update) bool {
 	return u.CallbackQuery != nil && strings.HasPrefix(u.CallbackQuery.Data, domain.ImageStyleCallbackPrefix)
 }
 
@@ -65,7 +65,7 @@ func (s *setImageStyleCallback) Handle(u *tgbotapi.Update) {
 	})
 }
 
-func (_ *setImageStyleCallback) parseImageStyle(data string) (string, error) {
+func (*setImageStyleCallback) parseImageStyle(data string) (string, error) {
 	if !strings.HasPrefix(data, domain.ImageStyleCallbackPrefix) {
 		return "", fmt.Errorf("unknown Image Style option: invalid prefix")
 	}

@@ -73,7 +73,7 @@ func (c *client) CreateChatCompletion(chatID int64, text, base64image string) (s
 	var content any
 	if base64image != "" {
 		content = []domain.Content{
-			{Type: "image_url", ImageUrl: &domain.ImageUrl{Url: "data:image/jpeg;base64," + base64image}},
+			{Type: "image_url", ImageURL: &domain.ImageURL{URL: "data:image/jpeg;base64," + base64image}},
 		}
 		if text != "" {
 			content = append([]domain.Content{{Type: "text", Text: text}}, content.([]domain.Content)...)
@@ -93,7 +93,7 @@ func (c *client) CreateChatCompletion(chatID int64, text, base64image string) (s
 
 	response, err := c.processChatCompletion(session)
 	if err != nil {
-		return "", fmt.Errorf("processing chat completion: %v", err)
+		return "", fmt.Errorf("processing chat completion: %w", err)
 	}
 
 	if response.Content != nil {
@@ -132,7 +132,7 @@ func (c *client) createNewSession(chatID int64) (*domain.ChatSession, error) {
 	ctx := context.Background()
 	settings, err := c.settingsRepo.GetAll(ctx, chatID)
 	if err != nil {
-		return nil, fmt.Errorf("fetching system settings: %v", err)
+		return nil, fmt.Errorf("fetching system settings: %w", err)
 	}
 
 	model, found := settings[domain.ModelKey]
@@ -142,7 +142,7 @@ func (c *client) createNewSession(chatID int64) (*domain.ChatSession, error) {
 
 	chatStyle, err := c.chatStyleRepo.GetActiveStyle(ctx, chatID)
 	if err != nil {
-		return nil, fmt.Errorf("fetching active chat style: %v", err)
+		return nil, fmt.Errorf("fetching active chat style: %w", err)
 	}
 
 	messages := []domain.ChatMessage{}

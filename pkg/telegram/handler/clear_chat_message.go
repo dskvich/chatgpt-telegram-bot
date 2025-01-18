@@ -23,7 +23,7 @@ func NewClearChatMessage(repo ChatRepository, client TelegramClient) *clearChatM
 		client: client,
 	}
 }
-func (_ *clearChatMessage) CanHandle(u *tgbotapi.Update) bool {
+func (*clearChatMessage) CanHandle(u *tgbotapi.Update) bool {
 	return u.Message != nil && strings.HasPrefix(strings.ToLower(u.Message.Text), "/new")
 }
 

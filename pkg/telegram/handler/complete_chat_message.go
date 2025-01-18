@@ -24,7 +24,7 @@ func NewCompleteChatMessage(
 	}
 }
 
-func (_ *completeChatMessage) CanHandle(u *tgbotapi.Update) bool {
+func (*completeChatMessage) CanHandle(u *tgbotapi.Update) bool {
 	if u.Message == nil {
 		return false
 	}

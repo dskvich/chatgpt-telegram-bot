@@ -28,11 +28,11 @@ func NewPostgres(url, host string) (*sql.DB, error) {
 	db.SetConnMaxLifetime(5 * time.Minute)
 
 	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("connecting to database: %v", err)
+		return nil, fmt.Errorf("connecting to database: %w", err)
 	}
 
 	if err := runMigrations(db); err != nil {
-		return nil, fmt.Errorf("running migrations: %v", err)
+		return nil, fmt.Errorf("running migrations: %w", err)
 	}
 
 	return db, nil

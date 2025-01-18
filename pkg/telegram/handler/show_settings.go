@@ -31,7 +31,7 @@ func NewShowSettingsMessage(
 	}
 }
 
-func (_ *showSettingsMessage) CanHandle(u *tgbotapi.Update) bool {
+func (*showSettingsMessage) CanHandle(u *tgbotapi.Update) bool {
 	return u.Message != nil && strings.HasPrefix(u.Message.Text, "/config")
 }
 
@@ -49,7 +49,7 @@ func (s *showSettingsMessage) Handle(u *tgbotapi.Update) {
 	})
 }
 
-func (_ *showSettingsMessage) formatForTelegram(data map[string]string) string {
+func (*showSettingsMessage) formatForTelegram(data map[string]string) string {
 	var sb strings.Builder
 	sb.WriteString("*Системные настройки:*\n\n")
 	sb.WriteString("```\n") // Code block for monospace formatting

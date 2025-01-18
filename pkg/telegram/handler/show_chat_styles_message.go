@@ -30,7 +30,7 @@ func NewShowChatStylesMessage(
 	}
 }
 
-func (_ *showChatStylesMessage) CanHandle(u *tgbotapi.Update) bool {
+func (*showChatStylesMessage) CanHandle(u *tgbotapi.Update) bool {
 	return u.Message != nil && strings.HasPrefix(u.Message.Text, "/styles")
 }
 
@@ -53,7 +53,7 @@ func (s *showChatStylesMessage) Handle(u *tgbotapi.Update) {
 	})
 }
 
-func (_ *showChatStylesMessage) formatForTelegram(styles []domain.ChatStyle) string {
+func (*showChatStylesMessage) formatForTelegram(styles []domain.ChatStyle) string {
 	if len(styles) == 0 {
 		return "Нет доступных стилей общения для данного чата."
 	}

@@ -61,7 +61,7 @@ func (s *setModel) Function() any {
 func findModel(userModel string) (string, error) {
 	normalizedModel := strings.ToLower(userModel)
 	for _, model := range domain.SupportedModels {
-		if normalizedModel == strings.ToLower(model) {
+		if strings.EqualFold(normalizedModel, model) {
 			return model, nil
 		}
 	}

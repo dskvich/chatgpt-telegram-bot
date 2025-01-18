@@ -164,7 +164,7 @@ func (r *chatStyleRepository) UpdateActiveStyle(ctx context.Context, chatID int6
         WHERE chat_id = $1 AND is_active = TRUE
     `, chatID).Scan(&currentDescription)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			// No active style found, create a new one
 			_, err = tx.ExecContext(ctx, `
                 INSERT INTO chat_styles (chat_id, name, is_active, description, created_by)

@@ -38,7 +38,7 @@ func NewCompleteVoiceMessage(
 	}
 }
 
-func (_ *completeVoiceMessage) CanHandle(u *tgbotapi.Update) bool {
+func (*completeVoiceMessage) CanHandle(u *tgbotapi.Update) bool {
 	return u.Message != nil && u.Message.Voice != nil
 }
 

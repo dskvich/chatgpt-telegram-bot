@@ -20,7 +20,7 @@ func NewShowInfoMessage(
 	}
 }
 
-func (_ *showInfoMessage) CanHandle(u *tgbotapi.Update) bool {
+func (*showInfoMessage) CanHandle(u *tgbotapi.Update) bool {
 	return u.Message != nil && (strings.HasPrefix(u.Message.Text, "/start") ||
 		strings.Contains(strings.ToLower(u.Message.Text), "что ты умеешь") ||
 		strings.Contains(strings.ToLower(u.Message.Text), "что ты можешь"))

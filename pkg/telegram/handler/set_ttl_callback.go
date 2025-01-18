@@ -29,7 +29,7 @@ func NewSetTTLCallback(
 	}
 }
 
-func (_ *setTTLCallback) CanHandle(u *tgbotapi.Update) bool {
+func (*setTTLCallback) CanHandle(u *tgbotapi.Update) bool {
 	return u.CallbackQuery != nil && strings.HasPrefix(u.CallbackQuery.Data, domain.SetChatTTLCallback)
 }
 
@@ -63,7 +63,7 @@ func (s *setTTLCallback) Handle(u *tgbotapi.Update) {
 	})
 }
 
-func (_ *setTTLCallback) parseTTL(data string) (time.Duration, error) {
+func (*setTTLCallback) parseTTL(data string) (time.Duration, error) {
 	switch data {
 	case "ttl_15m":
 		return 15 * time.Minute, nil

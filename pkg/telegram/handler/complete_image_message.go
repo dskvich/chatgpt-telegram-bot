@@ -23,7 +23,7 @@ func NewCompleteImageMessage(
 	}
 }
 
-func (_ *completeImageMessage) CanHandle(u *tgbotapi.Update) bool {
+func (*completeImageMessage) CanHandle(u *tgbotapi.Update) bool {
 	if u.Message == nil {
 		return false
 	}
