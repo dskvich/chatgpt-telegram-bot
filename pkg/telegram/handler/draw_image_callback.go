@@ -40,7 +40,7 @@ func (*drawImageCallback) CanHandle(u *tgbotapi.Update) bool {
 func (d *drawImageCallback) Handle(u *tgbotapi.Update) {
 	chatID := u.CallbackQuery.Message.Chat.ID
 	messageID := u.CallbackQuery.Message.ReplyToMessage.MessageID
-	//TODO: panics after removing replyTo... need to get initial request from another place
+	// TODO: panics after removing replyTo... need to get initial request from another place
 
 	prompt, err := d.storage.FetchPrompt(context.Background(), chatID, messageID)
 	if err != nil {

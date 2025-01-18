@@ -399,7 +399,7 @@ func (c *client) TranscribeAudio(audioFilePath string) (string, error) {
 }
 
 // createMultipartForm creates a multipart form with the file and model fields
-func createMultipartForm(filePath string, model string) (*bytes.Buffer, string, error) {
+func createMultipartForm(filePath, model string) (*bytes.Buffer, string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, "", fmt.Errorf("error opening file: %w", err)
@@ -446,7 +446,7 @@ func (c *client) GenerateImage(chatID int64, prompt string) ([]byte, error) {
 		imageStyle = domain.ImageStyleDefault
 	}
 
-	var requestBody = struct {
+	requestBody := struct {
 		Model          string `json:"model"`
 		Prompt         string `json:"prompt"`
 		N              int    `json:"n"`

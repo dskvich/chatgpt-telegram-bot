@@ -16,6 +16,7 @@ type chatStyleRepository struct {
 func NewChatStyleRepository(db *sql.DB) *chatStyleRepository {
 	return &chatStyleRepository{db: db}
 }
+
 func (r *chatStyleRepository) NewStyleFromActive(ctx context.Context, chatID int64, name, createdBy string) error {
 	tx, err := r.db.Begin()
 	if err != nil {

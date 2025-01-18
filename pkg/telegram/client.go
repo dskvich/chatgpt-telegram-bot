@@ -163,6 +163,7 @@ func (c *client) handleError(chatID int64, err error) {
 
 	_, _ = c.bot.Send(m)
 }
+
 func (c *client) DownloadFile(fileID string) (string, error) {
 	file, err := c.bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
 	if err != nil {
@@ -190,11 +191,11 @@ func (c *client) DownloadFile(fileID string) (string, error) {
 	}
 
 	filePath := path.Join("app", file.FilePath)
-	if err := os.MkdirAll(path.Dir(filePath), 0755); err != nil {
+	if err := os.MkdirAll(path.Dir(filePath), 0o755); err != nil {
 		return "", fmt.Errorf("creating directories for '%s': %v", filePath, err)
 	}
 
-	if err := os.WriteFile(filePath, bytes, 0600); err != nil {
+	if err := os.WriteFile(filePath, bytes, 0o600); err != nil {
 		return "", fmt.Errorf("saving file: %v", err)
 	}
 

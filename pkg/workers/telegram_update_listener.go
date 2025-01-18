@@ -102,7 +102,7 @@ func (t *telegramUpdateListener) processUpdate(update tgbotapi.Update) {
 	slog.Warn("No handler found for update", "update", update)
 }
 
-func (t *telegramUpdateListener) respondUnauthorized(chatID int64, userID int64) {
+func (t *telegramUpdateListener) respondUnauthorized(chatID, userID int64) {
 	slog.Warn("Unauthorized access attempt", "userID", userID, "chatID", chatID)
 
 	t.client.SendTextMessage(domain.TextMessage{
