@@ -57,12 +57,16 @@ func (c *client) SendTextMessage(msg domain.TextMessage) {
 
 	for len(text) > 0 {
 		if utf8.RuneCountInString(text) <= maxTelegramMessageLength {
-			c.send(msg.ChatID, text)
+			if err := c.send(msg.ChatID, text); err != nil {
+				c.handleError(msg.ChatID, err)
+			}
 			break
 		}
 
 		cutIndex := c.findCutIndex(text, maxTelegramMessageLength)
-		c.send(msg.ChatID, text[:cutIndex])
+		if err := c.send(msg.ChatID, text); err != nil {
+			c.handleError(msg.ChatID, err)
+		}
 		text = text[cutIndex:]
 	}
 }

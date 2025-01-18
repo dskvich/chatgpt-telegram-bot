@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
@@ -29,7 +30,9 @@ func (r *chatStyleRepository) NewStyleFromActive(ctx context.Context, chatID int
         WHERE chat_id = $1 AND is_active = TRUE
     `, chatID).Scan(&currentDescription)
 	if err != nil {
-		tx.Rollback()
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+		}
 		if errors.Is(err, sql.ErrNoRows) {
 			return errors.New("no active style found")
 		}
@@ -42,7 +45,9 @@ func (r *chatStyleRepository) NewStyleFromActive(ctx context.Context, chatID int
         VALUES ($1, $2, FALSE, $3, $4)
     `, chatID, name, currentDescription, createdBy)
 	if err != nil {
-		tx.Rollback()
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+		}
 		return err
 	}
 
@@ -88,12 +93,16 @@ func (r *chatStyleRepository) Activate(ctx context.Context, chatID int64, name s
         )
     `, chatID, name).Scan(&exists)
 	if err != nil {
-		tx.Rollback()
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+		}
 		return err
 	}
 
 	if !exists {
-		tx.Rollback()
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+		}
 		return errors.New("style not found")
 	}
 
@@ -104,7 +113,9 @@ func (r *chatStyleRepository) Activate(ctx context.Context, chatID int64, name s
         WHERE chat_id = $1
     `, chatID)
 	if err != nil {
-		tx.Rollback()
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+		}
 		return err
 	}
 
@@ -115,18 +126,24 @@ func (r *chatStyleRepository) Activate(ctx context.Context, chatID int64, name s
         WHERE chat_id = $1 AND LOWER(name) = LOWER($2)
     `, chatID, name)
 	if err != nil {
-		tx.Rollback()
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+		}
 		return err
 	}
 
 	affectedRows, err := result.RowsAffected()
 	if err != nil {
-		tx.Rollback()
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+		}
 		return err
 	}
 
 	if affectedRows == 0 {
-		tx.Rollback()
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return fmt.Errorf("rollback failed: %v", rollbackErr)
+		}
 		return errors.New("style activation failed")
 	}
 
@@ -154,12 +171,16 @@ func (r *chatStyleRepository) UpdateActiveStyle(ctx context.Context, chatID int6
                 VALUES ($1, 'default', TRUE, $2, '')
             `, chatID, newInstruction)
 			if err != nil {
-				tx.Rollback()
+				if rollbackErr := tx.Rollback(); rollbackErr != nil {
+					return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+				}
 				return err
 			}
 			return tx.Commit()
 		}
-		tx.Rollback()
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+		}
 		return err
 	}
 
@@ -172,7 +193,9 @@ func (r *chatStyleRepository) UpdateActiveStyle(ctx context.Context, chatID int6
         WHERE chat_id = $2 AND is_active = TRUE
     `, updatedDescription, chatID)
 	if err != nil {
-		tx.Rollback()
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+		}
 		return err
 	}
 

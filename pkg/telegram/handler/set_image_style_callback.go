@@ -46,7 +46,14 @@ func (s *setImageStyleCallback) Handle(u *tgbotapi.Update) {
 		return
 	}
 
-	s.setter.Save(context.Background(), chatID, domain.ImageStyleKey, imageStyle)
+	err = s.setter.Save(context.Background(), chatID, domain.ImageStyleKey, imageStyle)
+	if err != nil {
+		s.client.SendTextMessage(domain.TextMessage{
+			ChatID: chatID,
+			Text:   err.Error(),
+		})
+		return
+	}
 
 	s.client.SendCallbackMessage(domain.CallbackMessage{
 		CallbackQueryID: callbackQueryID,
