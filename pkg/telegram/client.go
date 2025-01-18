@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	maxRunes = 4096
+	maxTelegramMessageLength = 4096
 
 	responseDeliveryFailedMessage = "Не удалось доставить ответ"
 )
@@ -53,44 +53,40 @@ func (c *client) GetUpdates() tgbotapi.UpdatesChannel {
 }
 
 func (c *client) SendTextMessage(msg domain.TextMessage) {
-	// convert to HTML
 	text := render.ToHTML(msg.Text)
 
-	// check the rune count, telegram is limited to 4096 chars per message
-	msgRuneCount := utf8.RuneCountInString(text)
-
-	for msgRuneCount > maxRunes {
-		stop := maxRunes
-
-		// Find the last <pre> tag or newline before the stop index
-		lastPreTag := strings.LastIndex(text[:stop], "<pre>")
-		lastNewline := strings.LastIndex(text[:stop], "\n")
-
-		// Choose the appropriate stop point
-		if lastPreTag != -1 && lastPreTag < stop {
-			stop = lastPreTag
-		} else if lastNewline != -1 && lastNewline < stop {
-			stop = lastNewline
+	for len(text) > 0 {
+		if utf8.RuneCountInString(text) <= maxTelegramMessageLength {
+			c.send(msg.ChatID, text)
+			break
 		}
 
-		// Send the current chunk
-		c.send(msg.ChatID, text[:stop])
-
-		text = text[stop:]
-		msgRuneCount = utf8.RuneCountInString(text)
+		cutIndex := c.findCutIndex(text, maxTelegramMessageLength)
+		c.send(msg.ChatID, text[:cutIndex])
+		text = text[cutIndex:]
 	}
-
-	c.send(msg.ChatID, text)
 }
 
-func (c *client) send(chatID int64, text string) {
-	m := tgbotapi.NewMessage(chatID, text)
-	m.ParseMode = tgbotapi.ModeHTML
-	m.DisableWebPagePreview = true
+func (c *client) findCutIndex(text string, maxLength int) int {
+	lastPre := strings.LastIndex(text[:maxLength], "<pre>")
+	lastNewline := strings.LastIndex(text[:maxLength], "\n")
 
-	if _, err := c.bot.Send(m); err != nil {
-		c.handleError(chatID, err)
+	if lastPre > -1 {
+		return lastPre
 	}
+	if lastNewline > -1 {
+		return lastNewline
+	}
+	return maxLength
+}
+
+func (c *client) send(chatID int64, text string) error {
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ParseMode = tgbotapi.ModeHTML
+	msg.DisableWebPagePreview = true
+
+	_, err := c.bot.Send(msg)
+	return err
 }
 
 func (c *client) SendImageMessage(msg domain.ImageMessage) {

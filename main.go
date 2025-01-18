@@ -14,7 +14,6 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/workers"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/auth"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/chatgpt"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/converter"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/database"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
@@ -94,7 +93,6 @@ func setupWorkers() (workers.Group, error) {
 
 	// Initialize tools
 	tools := []openai.ToolFunction{
-
 		tools.NewGetChatSettings(settingsRepository),
 		tools.NewSetModel(settingsRepository),
 		tools.NewUpdateActiveChatStyle(chatStyleRepository),
@@ -106,17 +104,14 @@ func setupWorkers() (workers.Group, error) {
 	if err != nil {
 		return nil, fmt.Errorf("creating open ai client: %v", err)
 	}
-	imageGptClient := chatgpt.NewImageClient(cfg.OpenAIToken, settingsRepository)
-	audioGptClient := chatgpt.NewAudioClient(cfg.OpenAIToken)
 
 	oggToMp3Converter := converter.OggTomp3{}
-	speechToTextConverter := converter.NewSpeechToText(audioGptClient)
 
 	handlers := []workers.Handler{
 		// non ai commands
 		handler.NewShowInfoMessage(telegramClient),
 		handler.NewClearChatMessage(chatRepository, telegramClient),
-		handler.NewSetTTL(telegramClient),
+		handler.NewSetTTLMessage(telegramClient),
 		handler.NewSetTTLCallback(telegramClient, chatRepository),
 		handler.NewShowSettingsMessage(telegramClient, settingsRepository),
 		handler.NewSetImageStyleMessage(telegramClient),
@@ -125,10 +120,10 @@ func setupWorkers() (workers.Group, error) {
 
 		// ai commands
 		handler.NewCompleteChatMessage(openAiClient, telegramClient),
-		handler.NewCompleteVoiceMessage(telegramClient, &oggToMp3Converter, speechToTextConverter, openAiClient, imageGptClient, promptRepository, telegramClient),
-		handler.NewDrawImage(imageGptClient, promptRepository, telegramClient),
-		handler.NewDrawImageCallback(imageGptClient, promptRepository, telegramClient),
-		handler.NewCompleteImageMessage(telegramClient, openAiClient, telegramClient),
+		handler.NewCompleteVoiceMessage(&oggToMp3Converter, openAiClient, promptRepository, telegramClient),
+		handler.NewDrawImageMessage(openAiClient, promptRepository, telegramClient),
+		handler.NewDrawImageCallback(openAiClient, promptRepository, telegramClient),
+		handler.NewCompleteImageMessage(openAiClient, telegramClient),
 	}
 
 	if worker, err = workers.NewTelegramUpdateListener(

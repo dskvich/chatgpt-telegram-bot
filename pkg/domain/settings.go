@@ -1,10 +1,10 @@
 package domain
 
 const (
-	SystemPromptKey = "system_prompt"
-	ModelKey        = "model"
+	ModelKey = "model"
 
-	DefaultModel = "gpt-4o-mini"
+	DefaultModel           = "gpt-4o-mini"
+	SpeechRecognitionModel = "whisper-1"
 
 	WelcomeMessage = `👋 Я твой ChatGPT Telegram-бот. Вот что умею:
 

@@ -79,7 +79,7 @@ func (c *chatRepository) GetSession(chatID int64) (domain.ChatSession, bool) {
 	return entry.session, true
 }
 
-func (c *chatRepository) RemoveSession(chatID int64) {
+func (c *chatRepository) ClearChat(chatID int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

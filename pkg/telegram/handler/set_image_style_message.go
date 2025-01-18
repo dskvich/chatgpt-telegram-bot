@@ -24,8 +24,8 @@ func (_ *setImageStyleMessage) CanHandle(u *tgbotapi.Update) bool {
 	return u.Message != nil && strings.HasPrefix(strings.ToLower(u.Message.Text), "/image_style")
 }
 
-func (c *setImageStyleMessage) Handle(u *tgbotapi.Update) {
-	c.client.SendImageStyleMessage(domain.TextMessage{
+func (s *setImageStyleMessage) Handle(u *tgbotapi.Update) {
+	s.client.SendImageStyleMessage(domain.TextMessage{
 		ChatID: u.Message.Chat.ID,
 	})
 }

@@ -8,19 +8,19 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
-type MessagesRemover interface {
-	RemoveSession(chatID int64)
+type ChatRepository interface {
+	ClearChat(chatID int64)
 }
 
 type clearChatMessage struct {
-	remover MessagesRemover
-	client  TelegramClient
+	repo   ChatRepository
+	client TelegramClient
 }
 
-func NewClearChatMessage(remover MessagesRemover, client TelegramClient) *clearChatMessage {
+func NewClearChatMessage(repo ChatRepository, client TelegramClient) *clearChatMessage {
 	return &clearChatMessage{
-		remover: remover,
-		client:  client,
+		repo:   repo,
+		client: client,
 	}
 }
 func (_ *clearChatMessage) CanHandle(u *tgbotapi.Update) bool {
@@ -28,7 +28,7 @@ func (_ *clearChatMessage) CanHandle(u *tgbotapi.Update) bool {
 }
 
 func (c *clearChatMessage) Handle(u *tgbotapi.Update) {
-	c.remover.RemoveSession(u.Message.Chat.ID)
+	c.repo.ClearChat(u.Message.Chat.ID)
 
 	c.client.SendTextMessage(domain.TextMessage{
 		ChatID: u.Message.Chat.ID,

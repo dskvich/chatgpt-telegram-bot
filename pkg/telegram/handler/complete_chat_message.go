@@ -9,22 +9,18 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
-type GptProvider interface {
-	CreateChatCompletion(chatID int64, text, base64image string) (string, error)
-}
-
 type completeChatMessage struct {
-	gptProvider GptProvider
-	client      TelegramClient
+	openAiClient   OpenAiClient
+	telegramClient TelegramClient
 }
 
 func NewCompleteChatMessage(
-	gptProvider GptProvider,
-	client TelegramClient,
+	openAiClient OpenAiClient,
+	telegramClient TelegramClient,
 ) *completeChatMessage {
 	return &completeChatMessage{
-		gptProvider: gptProvider,
-		client:      client,
+		openAiClient:   openAiClient,
+		telegramClient: telegramClient,
 	}
 }
 
@@ -39,15 +35,13 @@ func (_ *completeChatMessage) CanHandle(u *tgbotapi.Update) bool {
 }
 
 func (c *completeChatMessage) Handle(u *tgbotapi.Update) {
-	chatID := u.Message.Chat.ID
-
-	response, err := c.gptProvider.CreateChatCompletion(chatID, u.Message.Text, "")
+	response, err := c.openAiClient.CreateChatCompletion(u.Message.Chat.ID, u.Message.Text, "")
 	if err != nil {
 		response = fmt.Sprintf("Failed to get chat completion: %v", err)
 	}
 
-	c.client.SendTextMessage(domain.TextMessage{
-		ChatID: chatID,
+	c.telegramClient.SendTextMessage(domain.TextMessage{
+		ChatID: u.Message.Chat.ID,
 		Text:   response,
 	})
 }

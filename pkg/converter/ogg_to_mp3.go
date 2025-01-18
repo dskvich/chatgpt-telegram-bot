@@ -2,6 +2,7 @@ package converter
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path"
@@ -15,6 +16,8 @@ func (o *OggTomp3) ConvertToMP3(inputPath string) (string, error) {
 		err        error
 	)
 
+	slog.Info("Converting voice message to mp3...", "inputPath", inputPath)
+
 	if path.Ext(inputPath) == ".ogg" || path.Ext(inputPath) == ".oga" {
 		outputPath, err = convertAudioToMp3(inputPath)
 		defer os.Remove(inputPath)
@@ -22,6 +25,8 @@ func (o *OggTomp3) ConvertToMP3(inputPath string) (string, error) {
 			return "", fmt.Errorf("converting file: %v", err)
 		}
 	}
+
+	slog.Info("Conversion successful", "inputPath", inputPath, "outputPath", outputPath)
 
 	return outputPath, err
 }

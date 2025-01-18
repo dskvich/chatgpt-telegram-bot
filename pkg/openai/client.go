@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
+	"os"
 	"reflect"
 
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 	"github.com/sashabaranov/go-openai/jsonschema"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
@@ -350,4 +353,153 @@ func (c *client) sendChatCompletionRequest(request *chatCompletionsRequest) (*ch
 	}
 
 	return &chatResponse, nil
+}
+
+func (c *client) TranscribeAudio(audioFilePath string) (string, error) {
+	const apiURL = "https://api.openai.com/v1/audio/transcriptions"
+	const model = "whisper-1"
+
+	slog.Info("Transcribing audio", "audioFilePath", audioFilePath, "model", model)
+
+	// Create multipart form data
+	requestBody, contentType, err := createMultipartForm(audioFilePath, model)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, apiURL, requestBody)
+	if err != nil {
+		return "", fmt.Errorf("error creating request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.token))
+	req.Header.Set("Content-Type", contentType)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("executing HTTP request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("unexpected status code: %d, response: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var responseBody struct {
+		Text string `json:"text"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&responseBody); err != nil {
+		return "", fmt.Errorf("decoding response data: %v", err)
+	}
+
+	slog.Info("Transcription successful", "text", responseBody.Text)
+
+	return responseBody.Text, nil
+}
+
+// createMultipartForm creates a multipart form with the file and model fields
+func createMultipartForm(filePath string, model string) (*bytes.Buffer, string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, "", fmt.Errorf("error opening file: %w", err)
+	}
+	defer file.Close()
+
+	var requestBody bytes.Buffer
+	writer := multipart.NewWriter(&requestBody)
+
+	// Add the file field
+	fileWriter, err := writer.CreateFormFile("file", filePath)
+	if err != nil {
+		return nil, "", fmt.Errorf("error creating form file: %w", err)
+	}
+	if _, err := io.Copy(fileWriter, file); err != nil {
+		return nil, "", fmt.Errorf("error copying file: %w", err)
+	}
+
+	// Add the model field
+	if err := writer.WriteField("model", model); err != nil {
+		return nil, "", fmt.Errorf("error writing model field: %w", err)
+	}
+
+	if err := writer.Close(); err != nil {
+		return nil, "", fmt.Errorf("error closing writer: %w", err)
+	}
+
+	return &requestBody, writer.FormDataContentType(), nil
+}
+
+func (c *client) GenerateImage(chatID int64, prompt string) ([]byte, error) {
+	const apiURL = "https://api.openai.com/v1/images/generations"
+	const model = "dall-e-3"
+
+	slog.Info("Generating image", "chatID", chatID, "prompt", prompt, "model", model)
+
+	settings, err := c.settingsRepo.GetAll(context.TODO(), chatID)
+	if err != nil {
+		slog.Error("fetching system settings", "chatID", chatID, logger.Err(err))
+	}
+
+	imageStyle, found := settings[domain.ImageStyleKey]
+	if !found {
+		imageStyle = domain.ImageStyleDefault
+	}
+
+	var requestBody = struct {
+		Model          string `json:"model"`
+		Prompt         string `json:"prompt"`
+		N              int    `json:"n"`
+		Size           string `json:"size"`
+		ResponseFormat string `json:"response_format"`
+		Style          string `json:"style"`
+	}{
+		Model:          model,
+		Prompt:         prompt,
+		N:              1,
+		Size:           "1024x1024",
+		ResponseFormat: "b64_json",
+		Style:          imageStyle,
+	}
+
+	body, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling chat request: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, apiURL, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("creating HTTP request: %v", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("executing HTTP request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status code: %d, response: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var responseBody struct {
+		Created int `json:"created"`
+		Data    []struct {
+			B64Json []byte `json:"b64_json"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&responseBody); err != nil {
+		return nil, fmt.Errorf("decoding response data: %v", err)
+	}
+
+	if len(responseBody.Data) > 0 {
+		slog.Info("Image generation successful", "chatID", chatID, slog.Int("image_count", len(responseBody.Data)))
+		return responseBody.Data[0].B64Json, nil
+	}
+
+	return nil, fmt.Errorf("no response from API")
 }

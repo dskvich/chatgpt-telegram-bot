@@ -9,24 +9,8 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
-type FileDownloader interface {
-	DownloadFile(fileID string) (filePath string, err error)
-}
-
 type AudioConverter interface {
 	ConvertToMP3(inputPath string) (outputPath string, err error)
-}
-
-type SpeechTranscriber interface {
-	SpeechToText(filePath string) (text string, err error)
-}
-
-type GptTextResponseGenerator interface {
-	CreateChatCompletion(chatID int64, text, base64image string) (string, error)
-}
-
-type GptImageResponseGenerator interface {
-	GenerateImage(chatID int64, prompt string) ([]byte, error)
 }
 
 type VoicePromptSaver interface {
@@ -34,32 +18,23 @@ type VoicePromptSaver interface {
 }
 
 type completeVoiceMessage struct {
-	downloader     FileDownloader
-	converter      AudioConverter
-	transcriber    SpeechTranscriber
-	textGenerator  GptTextResponseGenerator
-	imageGenerator GptImageResponseGenerator
-	saver          VoicePromptSaver
-	client         TelegramClient
+	converter    AudioConverter
+	openAiClient OpenAiClient
+	saver        VoicePromptSaver
+	client       TelegramClient
 }
 
 func NewCompleteVoiceMessage(
-	downloader FileDownloader,
 	converter AudioConverter,
-	transcriber SpeechTranscriber,
-	textGenerator GptTextResponseGenerator,
-	imageGenerator GptImageResponseGenerator,
+	openAiClient OpenAiClient,
 	saver VoicePromptSaver,
 	client TelegramClient,
 ) *completeVoiceMessage {
 	return &completeVoiceMessage{
-		downloader:     downloader,
-		converter:      converter,
-		transcriber:    transcriber,
-		textGenerator:  textGenerator,
-		imageGenerator: imageGenerator,
-		saver:          saver,
-		client:         client,
+		converter:    converter,
+		openAiClient: openAiClient,
+		saver:        saver,
+		client:       client,
 	}
 }
 
@@ -71,7 +46,7 @@ func (c *completeVoiceMessage) Handle(u *tgbotapi.Update) {
 	chatID := u.Message.Chat.ID
 	messageID := u.Message.MessageID
 
-	filePath, err := c.downloader.DownloadFile(u.Message.Voice.FileID)
+	filePath, err := c.client.DownloadFile(u.Message.Voice.FileID)
 	if err != nil {
 		c.client.SendTextMessage(domain.TextMessage{
 			ChatID: chatID,
@@ -89,7 +64,7 @@ func (c *completeVoiceMessage) Handle(u *tgbotapi.Update) {
 		return
 	}
 
-	prompt, err := c.transcriber.SpeechToText(mp3FilePath)
+	prompt, err := c.openAiClient.TranscribeAudio(mp3FilePath)
 	if err != nil {
 		c.client.SendTextMessage(domain.TextMessage{
 			ChatID: chatID,
@@ -119,7 +94,7 @@ func (c *completeVoiceMessage) Handle(u *tgbotapi.Update) {
 	if commandText.ContainsAny(domain.DrawKeywords) {
 		prompt = commandText.ExtractAfterKeywords(domain.DrawKeywords)
 
-		imgBytes, err := c.imageGenerator.GenerateImage(chatID, prompt)
+		imgBytes, err := c.openAiClient.GenerateImage(chatID, prompt)
 		if err != nil {
 			c.client.SendTextMessage(domain.TextMessage{
 				ChatID: chatID,
@@ -135,7 +110,7 @@ func (c *completeVoiceMessage) Handle(u *tgbotapi.Update) {
 		return
 	}
 
-	response, err := c.textGenerator.CreateChatCompletion(u.Message.Chat.ID, prompt, "")
+	response, err := c.openAiClient.CreateChatCompletion(u.Message.Chat.ID, prompt, "")
 	if err != nil {
 		response = fmt.Sprintf("Failed to get chat completion: %c", err)
 	}

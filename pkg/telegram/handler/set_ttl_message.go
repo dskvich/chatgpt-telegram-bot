@@ -8,24 +8,24 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
-type setTTL struct {
+type setTTLMessage struct {
 	client TelegramClient
 }
 
-func NewSetTTL(
+func NewSetTTLMessage(
 	client TelegramClient,
-) *setTTL {
-	return &setTTL{
+) *setTTLMessage {
+	return &setTTLMessage{
 		client: client,
 	}
 }
 
-func (_ *setTTL) CanHandle(u *tgbotapi.Update) bool {
+func (_ *setTTLMessage) CanHandle(u *tgbotapi.Update) bool {
 	return u.Message != nil && strings.HasPrefix(strings.ToLower(u.Message.Text), "/ttl")
 }
 
-func (c *setTTL) Handle(u *tgbotapi.Update) {
-	c.client.SendTTLMessage(domain.TTLMessage{
+func (s *setTTLMessage) Handle(u *tgbotapi.Update) {
+	s.client.SendTTLMessage(domain.TTLMessage{
 		ChatID: u.Message.Chat.ID,
 	})
 }

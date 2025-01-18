@@ -10,34 +10,30 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
-type ImageGenerator interface {
-	GenerateImage(chatID int64, prompt string) ([]byte, error)
-}
-
 type PromptStorage interface {
 	SavePrompt(ctx context.Context, p *domain.Prompt) error
 	FetchPrompt(ctx context.Context, chatID int64, messageID int) (*domain.Prompt, error)
 }
 
-type drawImage struct {
-	generator ImageGenerator
-	storage   PromptStorage
-	client    TelegramClient
+type drawImageMessage struct {
+	openAiClient OpenAiClient
+	storage      PromptStorage
+	client       TelegramClient
 }
 
-func NewDrawImage(
-	generator ImageGenerator,
+func NewDrawImageMessage(
+	openAiClient OpenAiClient,
 	storage PromptStorage,
 	client TelegramClient,
-) *drawImage {
-	return &drawImage{
-		generator: generator,
-		storage:   storage,
-		client:    client,
+) *drawImageMessage {
+	return &drawImageMessage{
+		openAiClient: openAiClient,
+		storage:      storage,
+		client:       client,
 	}
 }
 
-func (_ *drawImage) CanHandle(u *tgbotapi.Update) bool {
+func (_ *drawImageMessage) CanHandle(u *tgbotapi.Update) bool {
 	if u.Message == nil {
 		return false
 	}
@@ -45,7 +41,7 @@ func (_ *drawImage) CanHandle(u *tgbotapi.Update) bool {
 		domain.CommandText(u.Message.Text).ContainsAny(domain.DrawKeywords)
 }
 
-func (d *drawImage) Handle(u *tgbotapi.Update) {
+func (d *drawImageMessage) Handle(u *tgbotapi.Update) {
 	chatID := u.Message.Chat.ID
 	messageID := u.Message.MessageID
 	prompt := domain.CommandText(u.Message.Text).ExtractAfterKeywords(domain.DrawKeywords)
@@ -62,11 +58,7 @@ func (d *drawImage) Handle(u *tgbotapi.Update) {
 		})
 	}
 
-	d.generateAndSendImage(chatID, prompt)
-}
-
-func (d *drawImage) generateAndSendImage(chatID int64, prompt string) {
-	imgBytes, err := d.generator.GenerateImage(chatID, prompt)
+	imgBytes, err := d.openAiClient.GenerateImage(chatID, prompt)
 	if err != nil {
 		d.client.SendTextMessage(domain.TextMessage{
 			ChatID: chatID,
