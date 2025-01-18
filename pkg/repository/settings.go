@@ -31,7 +31,7 @@ func (repo *settingsRepository) Save(ctx context.Context, chatID int64, key, val
 		DO UPDATE SET value = EXCLUDED.value;`
 
 	if _, err := repo.db.ExecContext(ctx, query, args...); err != nil {
-		return fmt.Errorf("saving setting: %v", err)
+		return fmt.Errorf("saving setting: %w", err)
 	}
 
 	return nil
@@ -45,7 +45,7 @@ func (repo *settingsRepository) GetByKey(ctx context.Context, chatID int64, key 
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", nil // Return an empty string with no error
 		}
-		return "", fmt.Errorf("fetching setting value: %v", err)
+		return "", fmt.Errorf("fetching setting value: %w", err)
 	}
 	return value, nil
 }
@@ -55,7 +55,7 @@ func (repo *settingsRepository) GetAll(ctx context.Context, chatID int64) (map[s
 
 	rows, err := repo.db.QueryContext(ctx, query, chatID)
 	if err != nil {
-		return nil, fmt.Errorf("fetching all settings: %v", err)
+		return nil, fmt.Errorf("fetching all settings: %w", err)
 	}
 	defer rows.Close()
 
@@ -63,13 +63,13 @@ func (repo *settingsRepository) GetAll(ctx context.Context, chatID int64) (map[s
 	for rows.Next() {
 		var key, value string
 		if err := rows.Scan(&key, &value); err != nil {
-			return nil, fmt.Errorf("scanning setting row: %v", err)
+			return nil, fmt.Errorf("scanning setting row: %w", err)
 		}
 		settings[key] = value
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterating setting rows: %v", err)
+		return nil, fmt.Errorf("iterating setting rows: %w", err)
 	}
 
 	return settings, nil

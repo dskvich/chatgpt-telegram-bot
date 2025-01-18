@@ -47,7 +47,7 @@ func (a *activateChatStyle) Parameters() jsonschema.Definition {
 func (a *activateChatStyle) Function() any {
 	return func(chatID int64, name string) (string, error) {
 		if err := a.repo.Activate(context.Background(), chatID, name); err != nil {
-			return "", fmt.Errorf("activating chat style '%s' for chat '%d': %v", name, chatID, err)
+			return "", fmt.Errorf("activating chat style '%s' for chat '%d': %w", name, chatID, err)
 		}
 
 		return fmt.Sprintf("Стиль общения '%s' успешно активирован для чата '%d'", name, chatID), nil

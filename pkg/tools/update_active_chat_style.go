@@ -49,7 +49,7 @@ func (u *updateActiveChatStyle) Parameters() jsonschema.Definition {
 func (u *updateActiveChatStyle) Function() any {
 	return func(chatID int64, newInstruction string) (string, error) {
 		if err := u.repo.UpdateActiveStyle(context.Background(), chatID, newInstruction); err != nil {
-			return "", fmt.Errorf("updating active chat style for chat '%d': %v", chatID, err)
+			return "", fmt.Errorf("updating active chat style for chat '%d': %w", chatID, err)
 		}
 		return "Стиль общения обновлен", nil
 	}

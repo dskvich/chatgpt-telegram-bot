@@ -33,7 +33,7 @@ type client struct {
 func NewClient(token string) (*client, error) {
 	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
-		return nil, fmt.Errorf("creating bot api instance: %v", err)
+		return nil, fmt.Errorf("creating bot api instance: %w", err)
 	}
 
 	slog.Info("authorized on telegram", "account", bot.Self.UserName)
@@ -167,17 +167,17 @@ func (c *client) handleError(chatID int64, err error) {
 func (c *client) DownloadFile(fileID string) (string, error) {
 	file, err := c.bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
 	if err != nil {
-		return "", fmt.Errorf("getting file: %v", err)
+		return "", fmt.Errorf("getting file: %w", err)
 	}
 
 	req, err := http.NewRequest(http.MethodGet, file.Link(c.token), nil)
 	if err != nil {
-		return "", fmt.Errorf("creating request: %v", err)
+		return "", fmt.Errorf("creating request: %w", err)
 	}
 
 	resp, err := c.bot.Client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("executing request: %v", err)
+		return "", fmt.Errorf("executing request: %w", err)
 	}
 	defer func(Body io.ReadCloser) {
 		if closeErr := Body.Close(); closeErr != nil {
@@ -187,16 +187,16 @@ func (c *client) DownloadFile(fileID string) (string, error) {
 
 	bytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("reading response body: %v", err)
+		return "", fmt.Errorf("reading response body: %w", err)
 	}
 
 	filePath := path.Join("app", file.FilePath)
 	if err := os.MkdirAll(path.Dir(filePath), 0o755); err != nil {
-		return "", fmt.Errorf("creating directories for '%s': %v", filePath, err)
+		return "", fmt.Errorf("creating directories for '%s': %w", filePath, err)
 	}
 
 	if err := os.WriteFile(filePath, bytes, 0o600); err != nil {
-		return "", fmt.Errorf("saving file: %v", err)
+		return "", fmt.Errorf("saving file: %w", err)
 	}
 
 	return filePath, nil
@@ -205,17 +205,17 @@ func (c *client) DownloadFile(fileID string) (string, error) {
 func (c *client) GetFile(fileID string) (string, error) {
 	file, err := c.bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
 	if err != nil {
-		return "", fmt.Errorf("getting file: %v", err)
+		return "", fmt.Errorf("getting file: %w", err)
 	}
 
 	req, err := http.NewRequest(http.MethodGet, file.Link(c.token), nil)
 	if err != nil {
-		return "", fmt.Errorf("creating request: %v", err)
+		return "", fmt.Errorf("creating request: %w", err)
 	}
 
 	resp, err := c.bot.Client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("executing request: %v", err)
+		return "", fmt.Errorf("executing request: %w", err)
 	}
 	defer func(Body io.ReadCloser) {
 		if closeErr := Body.Close(); closeErr != nil {
@@ -225,7 +225,7 @@ func (c *client) GetFile(fileID string) (string, error) {
 
 	bytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("reading response body: %v", err)
+		return "", fmt.Errorf("reading response body: %w", err)
 	}
 
 	base64Image := base64.StdEncoding.EncodeToString(bytes)

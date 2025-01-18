@@ -30,7 +30,7 @@ func (repo *promptRepository) SavePrompt(ctx context.Context, p *domain.Prompt) 
 	q := `insert into prompts (` + strings.Join(columns, ", ") + `) values (` + strings.Join(placeholders, ",") + `)`
 
 	if _, err := repo.db.ExecContext(ctx, q, args...); err != nil {
-		return fmt.Errorf("saving prompt: %v", err)
+		return fmt.Errorf("saving prompt: %w", err)
 	}
 
 	return nil
@@ -57,7 +57,7 @@ func (repo *promptRepository) FetchPrompt(ctx context.Context, chatID int64, mes
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("scanning prompt row: %v", err)
+		return nil, fmt.Errorf("scanning prompt row: %w", err)
 	}
 
 	return &p, nil

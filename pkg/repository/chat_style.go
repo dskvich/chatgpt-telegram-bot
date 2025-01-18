@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
+	"log/slog"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 )
 
 type chatStyleRepository struct {
@@ -32,7 +33,7 @@ func (r *chatStyleRepository) NewStyleFromActive(ctx context.Context, chatID int
     `, chatID).Scan(&currentDescription)
 	if err != nil {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+			slog.Error("rollback failed: %v", logger.Err(rollbackErr))
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			return errors.New("no active style found")
@@ -47,7 +48,7 @@ func (r *chatStyleRepository) NewStyleFromActive(ctx context.Context, chatID int
     `, chatID, name, currentDescription, createdBy)
 	if err != nil {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+			slog.Error("rollback failed: %v", logger.Err(rollbackErr))
 		}
 		return err
 	}
@@ -95,14 +96,14 @@ func (r *chatStyleRepository) Activate(ctx context.Context, chatID int64, name s
     `, chatID, name).Scan(&exists)
 	if err != nil {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+			slog.Error("rollback failed: %v", logger.Err(rollbackErr))
 		}
 		return err
 	}
 
 	if !exists {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+			slog.Error("rollback failed: %v", logger.Err(rollbackErr))
 		}
 		return errors.New("style not found")
 	}
@@ -115,7 +116,7 @@ func (r *chatStyleRepository) Activate(ctx context.Context, chatID int64, name s
     `, chatID)
 	if err != nil {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+			slog.Error("rollback failed: %v", logger.Err(rollbackErr))
 		}
 		return err
 	}
@@ -128,7 +129,7 @@ func (r *chatStyleRepository) Activate(ctx context.Context, chatID int64, name s
     `, chatID, name)
 	if err != nil {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+			slog.Error("rollback failed: %v", logger.Err(rollbackErr))
 		}
 		return err
 	}
@@ -136,14 +137,14 @@ func (r *chatStyleRepository) Activate(ctx context.Context, chatID int64, name s
 	affectedRows, err := result.RowsAffected()
 	if err != nil {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+			slog.Error("rollback failed: %v", logger.Err(rollbackErr))
 		}
 		return err
 	}
 
 	if affectedRows == 0 {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			return fmt.Errorf("rollback failed: %v", rollbackErr)
+			slog.Error("rollback failed: %v", logger.Err(rollbackErr))
 		}
 		return errors.New("style activation failed")
 	}
@@ -173,14 +174,14 @@ func (r *chatStyleRepository) UpdateActiveStyle(ctx context.Context, chatID int6
             `, chatID, newInstruction)
 			if err != nil {
 				if rollbackErr := tx.Rollback(); rollbackErr != nil {
-					return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+					slog.Error("rollback failed: %v", logger.Err(rollbackErr))
 				}
 				return err
 			}
 			return tx.Commit()
 		}
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+			slog.Error("rollback failed: %v", logger.Err(rollbackErr))
 		}
 		return err
 	}
@@ -195,7 +196,7 @@ func (r *chatStyleRepository) UpdateActiveStyle(ctx context.Context, chatID int6
     `, updatedDescription, chatID)
 	if err != nil {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			return fmt.Errorf("query failed: %v, and rollback also failed: %v", err, rollbackErr)
+			slog.Error("rollback failed: %v", logger.Err(rollbackErr))
 		}
 		return err
 	}

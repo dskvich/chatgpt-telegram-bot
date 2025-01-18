@@ -28,7 +28,7 @@ type Config struct {
 	TelegramBotToken                      string        `env:"TELEGRAM_BOT_TOKEN,required"`
 	TelegramAuthorizedUserIDs             []int64       `env:"TELEGRAM_AUTHORIZED_USER_IDS" envSeparator:" "`
 	TelegramUpdateListenerPoolSize        int           `env:"TELEGRAM_UPDATE_LISTENER_POOL_SIZE" envDefault:"10"`
-	TelegramUpdateListenerPollingInterval time.Duration `env:"TELEGRAM_UPDATE_LISTENER_POLLING_INTERVAL" envDefault:"100ms"`
+	TelegramUpdateListenerPollingInterval time.Duration `env:"TELEGRAM_UPDATE_LISTENER_POLL_INTERVAL" envDefault:"100ms"`
 	PgURL                                 string        `env:"DATABASE_URL"`
 	PgHost                                string        `env:"DB_HOST" envDefault:"localhost:65432"`
 }
@@ -69,7 +69,7 @@ func runMain() error {
 func setupWorkers() (workers.Group, error) {
 	cfg := Config{}
 	if err := env.Parse(&cfg); err != nil {
-		return nil, fmt.Errorf("parsing env config: %v", err)
+		return nil, fmt.Errorf("parsing env config: %w", err)
 	}
 
 	var worker workers.Worker
@@ -77,13 +77,13 @@ func setupWorkers() (workers.Group, error) {
 
 	telegramClient, err := telegram.NewClient(cfg.TelegramBotToken)
 	if err != nil {
-		return nil, fmt.Errorf("creating telegram client: %v", err)
+		return nil, fmt.Errorf("creating telegram client: %w", err)
 	}
 	authenticator := auth.NewAuthenticator(cfg.TelegramAuthorizedUserIDs)
 
 	db, err := database.NewPostgres(cfg.PgURL, cfg.PgHost)
 	if err != nil {
-		return nil, fmt.Errorf("creating db: %v", err)
+		return nil, fmt.Errorf("creating db: %w", err)
 	}
 
 	chatRepository := repository.NewChatRepository(15 * time.Minute)
@@ -102,7 +102,7 @@ func setupWorkers() (workers.Group, error) {
 
 	openAiClient, err := openai.NewClient(cfg.OpenAIToken, chatRepository, settingsRepository, chatStyleRepository, tools)
 	if err != nil {
-		return nil, fmt.Errorf("creating open ai client: %v", err)
+		return nil, fmt.Errorf("creating open ai client: %w", err)
 	}
 
 	oggToMp3Converter := converter.OggTomp3{}

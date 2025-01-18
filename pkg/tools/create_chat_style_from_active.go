@@ -49,7 +49,7 @@ func (c *createChatStyleFromActive) Parameters() jsonschema.Definition {
 func (c *createChatStyleFromActive) Function() any {
 	return func(chatID int64, name string) (string, error) {
 		if err := c.repo.NewStyleFromActive(context.Background(), chatID, name, "admin"); err != nil {
-			return "", fmt.Errorf("creating new chat style from active for chat '%d': %v", chatID, err)
+			return "", fmt.Errorf("creating new chat style from active for chat '%d': %w", chatID, err)
 		}
 		return fmt.Sprintf("Стиль общения '%s' создан.", name), nil
 	}

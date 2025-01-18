@@ -52,7 +52,7 @@ func (s *setModel) Function() any {
 		}
 
 		if err := s.repo.Save(context.Background(), chatID, domain.ModelKey, properModel); err != nil {
-			return "", fmt.Errorf("saving model: %v", err)
+			return "", fmt.Errorf("saving model: %w", err)
 		}
 		return "Модель установлена", nil
 	}

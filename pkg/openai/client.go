@@ -84,7 +84,7 @@ func (c *client) CreateChatCompletion(chatID int64, text, base64image string) (s
 
 	session, err := c.getSession(chatID)
 	if session == nil {
-		return "", fmt.Errorf("getting session: %v", err)
+		return "", fmt.Errorf("getting session: %w", err)
 	}
 
 	session.Messages = append(session.Messages, domain.ChatMessage{Role: chatMessageRoleUser, Content: content})
@@ -122,7 +122,7 @@ func (c *client) getSession(chatID int64) (*domain.ChatSession, error) {
 	slog.Info("Creating new session", "chatID", chatID)
 	newSession, err := c.createNewSession(chatID)
 	if err != nil {
-		return nil, fmt.Errorf("creating new session: %v", err)
+		return nil, fmt.Errorf("creating new session: %w", err)
 	}
 
 	return newSession, nil
@@ -163,7 +163,7 @@ func (c *client) processChatCompletion(session *domain.ChatSession) (*domain.Cha
 	req := c.buildChatCompletionRequest(session.ModelName, session.Messages)
 	resp, err := c.sendChatCompletionRequest(req)
 	if err != nil {
-		return nil, fmt.Errorf("sending request: %v", err)
+		return nil, fmt.Errorf("sending request: %w", err)
 	}
 
 	if len(resp.Choices) == 0 {
@@ -254,7 +254,7 @@ func (c *client) callTool(chatID int64, toolCall domain.ToolCall) (string, error
 	var argumentMap map[string]interface{}
 	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &argumentMap); err != nil {
 		slog.Error("Failed to decode tool function arguments", "chatID", chatID, "tool", toolCall.Function.Name, "error", err)
-		return "", fmt.Errorf("failed to decode arguments: %v", err)
+		return "", fmt.Errorf("failed to decode arguments: %w", err)
 	}
 
 	// Prepare log data for expected parameters
@@ -282,8 +282,10 @@ func (c *client) callTool(chatID int64, toolCall domain.ToolCall) (string, error
 		// Ensure the value type is correct (assuming all parameters are strings here)
 		val := reflect.ValueOf(value)
 		if val.Kind() != reflect.String {
-			slog.Error("Argument type mismatch", "chatID", chatID, "tool", toolCall.Function.Name, "parameter", requiredParam, "expectedType", "string", "providedType", val.Kind().String())
-			return "", fmt.Errorf("argument type mismatch for parameter %s: expected string, got %s", requiredParam, val.Kind().String())
+			slog.Error("Argument type mismatch", "chatID", chatID, "tool", toolCall.Function.Name,
+				"parameter", requiredParam, "expectedType", "string", "providedType", val.Kind().String())
+			return "", fmt.Errorf("argument type mismatch for parameter %s: expected string, got %s",
+				requiredParam, val.Kind().String())
 		}
 
 		args = append(args, val)
@@ -291,7 +293,8 @@ func (c *client) callTool(chatID int64, toolCall domain.ToolCall) (string, error
 
 	// Validate argument count
 	if len(args) != fnType.NumIn() {
-		slog.Error("Argument count mismatch", "chatID", chatID, "tool", toolCall.Function.Name, "expected", fnType.NumIn(), "provided", len(args))
+		slog.Error("Argument count mismatch", "chatID", chatID, "tool", toolCall.Function.Name,
+			"expected", fnType.NumIn(), "provided", len(args))
 		return "", fmt.Errorf("argument count mismatch: expected %d, got %d", fnType.NumIn(), len(args))
 	}
 
@@ -349,7 +352,7 @@ func (c *client) sendChatCompletionRequest(request *chatCompletionsRequest) (*ch
 
 	var chatResponse chatCompletionsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&chatResponse); err != nil {
-		return nil, fmt.Errorf("decoding response data: %v", err)
+		return nil, fmt.Errorf("decoding response data: %w", err)
 	}
 
 	return &chatResponse, nil
@@ -390,7 +393,7 @@ func (c *client) TranscribeAudio(audioFilePath string) (string, error) {
 		Text string `json:"text"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&responseBody); err != nil {
-		return "", fmt.Errorf("decoding response data: %v", err)
+		return "", fmt.Errorf("decoding response data: %w", err)
 	}
 
 	slog.Info("Transcription successful", "text", responseBody.Text)
@@ -464,12 +467,12 @@ func (c *client) GenerateImage(chatID int64, prompt string) ([]byte, error) {
 
 	body, err := json.Marshal(requestBody)
 	if err != nil {
-		return nil, fmt.Errorf("marshaling chat request: %v", err)
+		return nil, fmt.Errorf("marshaling chat request: %w", err)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, apiURL, bytes.NewReader(body))
 	if err != nil {
-		return nil, fmt.Errorf("creating HTTP request: %v", err)
+		return nil, fmt.Errorf("creating HTTP request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.token)
@@ -477,7 +480,7 @@ func (c *client) GenerateImage(chatID int64, prompt string) ([]byte, error) {
 
 	resp, err := c.hc.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("executing HTTP request: %v", err)
+		return nil, fmt.Errorf("executing HTTP request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -493,7 +496,7 @@ func (c *client) GenerateImage(chatID int64, prompt string) ([]byte, error) {
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&responseBody); err != nil {
-		return nil, fmt.Errorf("decoding response data: %v", err)
+		return nil, fmt.Errorf("decoding response data: %w", err)
 	}
 
 	if len(responseBody.Data) > 0 {
