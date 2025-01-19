@@ -72,7 +72,8 @@ func (r *chatStyleRepository) GetActiveStyle(ctx context.Context, chatID int64) 
 		&chatStyle.CreatedBy,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
+			// Return an empty style
+			return &chatStyle, nil
 		}
 		return nil, err
 	}
@@ -165,7 +166,7 @@ func (r *chatStyleRepository) UpdateActiveStyle(ctx context.Context, chatID int6
         FROM chat_styles
         WHERE chat_id = $1 AND is_active = TRUE
     `, chatID).Scan(&currentDescription)
-	if err != nil {
+	if err != nil { //nolint:nestif // TODO: refactor and move this to service layer
 		if errors.Is(err, sql.ErrNoRows) {
 			// No active style found, create a new one
 			_, err = tx.ExecContext(ctx, `
@@ -225,6 +226,10 @@ func (r *chatStyleRepository) GetAllStyles(ctx context.Context, chatID int64) ([
 			return nil, err
 		}
 		styles = append(styles, style)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return styles, nil

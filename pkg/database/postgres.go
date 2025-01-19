@@ -11,7 +11,13 @@ import (
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
-const dbName = "app"
+const (
+	dbName = "app"
+
+	defaultMaxOpenConns    = 25
+	defaultMaxIdleConns    = 25
+	defaultConnMaxLifetime = 5 * time.Minute
+)
 
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
@@ -23,9 +29,9 @@ func NewPostgres(url, host string) (*sql.DB, error) {
 	slog.Info("database connection string", "url", url)
 
 	db := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(url)))
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(25)
-	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetMaxOpenConns(defaultMaxOpenConns)
+	db.SetMaxIdleConns(defaultMaxIdleConns)
+	db.SetConnMaxLifetime(defaultConnMaxLifetime)
 
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("connecting to database: %w", err)

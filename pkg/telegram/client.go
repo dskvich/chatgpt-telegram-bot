@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -22,15 +23,21 @@ const (
 	maxTelegramMessageLength = 4096
 
 	responseDeliveryFailedMessage = "Не удалось доставить ответ"
+
+	dirPermissions  = 0o755 // Owner: read, write, execute; Others: read, execute
+	filePermissions = 0o600 // Owner: read, write; Others: no access
 )
 
 type client struct {
 	token     string
 	bot       *tgbotapi.BotAPI
 	updatesCh tgbotapi.UpdatesChannel
+
+	// TODO: move this in service or something
+	imageStyles map[string]string
 }
 
-func NewClient(token string) (*client, error) {
+func NewClient(token string, imageStyles map[string]string) (*client, error) {
 	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		return nil, fmt.Errorf("creating bot api instance: %w", err)
@@ -42,9 +49,10 @@ func NewClient(token string) (*client, error) {
 	u.Timeout = 60
 
 	return &client{
-		token:     token,
-		bot:       bot,
-		updatesCh: bot.GetUpdatesChan(u),
+		token:       token,
+		bot:         bot,
+		updatesCh:   bot.GetUpdatesChan(u),
+		imageStyles: imageStyles,
 	}, nil
 }
 
@@ -55,7 +63,7 @@ func (c *client) GetUpdates() tgbotapi.UpdatesChannel {
 func (c *client) SendTextMessage(msg domain.TextMessage) {
 	text := render.ToHTML(msg.Text)
 
-	for len(text) > 0 {
+	for text != "" {
 		if utf8.RuneCountInString(text) <= maxTelegramMessageLength {
 			if err := c.send(msg.ChatID, text); err != nil {
 				c.handleError(msg.ChatID, err)
@@ -130,7 +138,7 @@ func (c *client) SendTTLMessage(msg domain.TTLMessage) {
 
 func (c *client) SendImageStyleMessage(msg domain.TextMessage) {
 	var keyboardButtons []tgbotapi.InlineKeyboardButton
-	for key, label := range domain.ImageStyles {
+	for key, label := range c.imageStyles {
 		callbackData := "image_style_" + key // Add the prefix
 		keyboardButtons = append(keyboardButtons, tgbotapi.NewInlineKeyboardButtonData(label, callbackData))
 	}
@@ -142,7 +150,7 @@ func (c *client) SendImageStyleMessage(msg domain.TextMessage) {
 		),
 	)
 
-	m := tgbotapi.NewMessage(msg.ChatID, domain.GetImageStylePrompt())
+	m := tgbotapi.NewMessage(msg.ChatID, "Выберите стиль генерации изображений: ")
 	m.ReplyMarkup = keyboard
 
 	if _, err := c.bot.Send(m); err != nil {
@@ -170,7 +178,7 @@ func (c *client) DownloadFile(fileID string) (string, error) {
 		return "", fmt.Errorf("getting file: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodGet, file.Link(c.token), nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, file.Link(c.token), http.NoBody)
 	if err != nil {
 		return "", fmt.Errorf("creating request: %w", err)
 	}
@@ -179,11 +187,7 @@ func (c *client) DownloadFile(fileID string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("executing request: %w", err)
 	}
-	defer func(Body io.ReadCloser) {
-		if closeErr := Body.Close(); closeErr != nil {
-			slog.Error("closing body", logger.Err(closeErr))
-		}
-	}(resp.Body)
+	defer resp.Body.Close()
 
 	bytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -191,11 +195,11 @@ func (c *client) DownloadFile(fileID string) (string, error) {
 	}
 
 	filePath := path.Join("app", file.FilePath)
-	if err := os.MkdirAll(path.Dir(filePath), 0o755); err != nil {
+	if err := os.MkdirAll(path.Dir(filePath), dirPermissions); err != nil {
 		return "", fmt.Errorf("creating directories for '%s': %w", filePath, err)
 	}
 
-	if err := os.WriteFile(filePath, bytes, 0o600); err != nil {
+	if err := os.WriteFile(filePath, bytes, filePermissions); err != nil {
 		return "", fmt.Errorf("saving file: %w", err)
 	}
 
@@ -208,7 +212,7 @@ func (c *client) GetFile(fileID string) (string, error) {
 		return "", fmt.Errorf("getting file: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodGet, file.Link(c.token), nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, file.Link(c.token), http.NoBody)
 	if err != nil {
 		return "", fmt.Errorf("creating request: %w", err)
 	}
@@ -217,11 +221,7 @@ func (c *client) GetFile(fileID string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("executing request: %w", err)
 	}
-	defer func(Body io.ReadCloser) {
-		if closeErr := Body.Close(); closeErr != nil {
-			slog.Error("closing body", logger.Err(closeErr))
-		}
-	}(resp.Body)
+	defer resp.Body.Close()
 
 	bytes, err := io.ReadAll(resp.Body)
 	if err != nil {

@@ -15,17 +15,20 @@ type TTLSetter interface {
 }
 
 type setTTLCallback struct {
-	client    TelegramClient
-	ttlSetter TTLSetter
+	client     TelegramClient
+	ttlSetter  TTLSetter
+	ttlOptions map[string]time.Duration
 }
 
 func NewSetTTLCallback(
 	client TelegramClient,
 	ttlSetter TTLSetter,
+	ttlOptions map[string]time.Duration,
 ) *setTTLCallback {
 	return &setTTLCallback{
-		client:    client,
-		ttlSetter: ttlSetter,
+		client:     client,
+		ttlSetter:  ttlSetter,
+		ttlOptions: ttlOptions,
 	}
 }
 
@@ -37,8 +40,8 @@ func (s *setTTLCallback) Handle(u *tgbotapi.Update) {
 	chatID := u.CallbackQuery.Message.Chat.ID
 	callbackQueryID := u.CallbackQuery.ID
 
-	ttl, err := s.parseTTL(u.CallbackQuery.Data)
-	if err != nil {
+	ttl, exists := s.ttlOptions[u.CallbackQuery.Data]
+	if !exists {
 		s.client.SendTextMessage(domain.TextMessage{
 			ChatID: chatID,
 			Text:   "Unknown TTL option selected.",
@@ -54,26 +57,11 @@ func (s *setTTLCallback) Handle(u *tgbotapi.Update) {
 
 	ttlText := "disabled"
 	if ttl > 0 {
-		ttlText = fmt.Sprintf("%v", ttl)
+		ttlText = ttl.String()
 	}
 
 	s.client.SendTextMessage(domain.TextMessage{
 		ChatID: chatID,
 		Text:   fmt.Sprintf("Set TTL to %v", ttlText),
 	})
-}
-
-func (*setTTLCallback) parseTTL(data string) (time.Duration, error) {
-	switch data {
-	case "ttl_15m":
-		return 15 * time.Minute, nil
-	case "ttl_1h":
-		return time.Hour, nil
-	case "ttl_8h":
-		return 8 * time.Hour, nil
-	case "ttl_disabled":
-		return 0, nil
-	default:
-		return 0, fmt.Errorf("unknown TTL option")
-	}
 }

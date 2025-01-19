@@ -1,4 +1,4 @@
-GOLANGCI_LINT_VERSION := 1.54.0
+GOLANGCI_LINT_VERSION := 1.63.4
 GOLANGCI_LINT := $(HOME)/go/bin/golangci-lint
 
 .PHONY: db
@@ -10,12 +10,20 @@ db:
 lint: install-lint run-lint
 
 install-lint:
-	@if [ ! -f "$(GOLANGCI_LINT)" ]; then \
+	@if [ -f "$(GOLANGCI_LINT)" ]; then \
+		INSTALLED_VERSION=$$($(GOLANGCI_LINT) version --format short | cut -d' ' -f1); \
+		if [ "$$INSTALLED_VERSION" != "$(GOLANGCI_LINT_VERSION)" ]; then \
+			echo "golangci-lint version mismatch ($$INSTALLED_VERSION found, $(GOLANGCI_LINT_VERSION) required). Updating..."; \
+			rm -f "$(GOLANGCI_LINT)"; \
+			curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(HOME)/go/bin v$(GOLANGCI_LINT_VERSION); \
+			echo "golangci-lint updated successfully."; \
+		else \
+			echo "golangci-lint version $(GOLANGCI_LINT_VERSION) is already installed."; \
+		fi; \
+	else \
 		echo "golangci-lint not found, installing..."; \
 		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(HOME)/go/bin v$(GOLANGCI_LINT_VERSION); \
 		echo "golangci-lint installed successfully."; \
-	else \
-		echo "golangci-lint is already installed."; \
 	fi
 
 run-lint:

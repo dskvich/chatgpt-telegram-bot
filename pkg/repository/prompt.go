@@ -3,9 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
@@ -19,15 +17,8 @@ func NewPromptRepository(db *sql.DB) *promptRepository {
 }
 
 func (repo *promptRepository) SavePrompt(ctx context.Context, p *domain.Prompt) error {
-	columns := []string{"message_id", "chat_id", "text", "created_by"}
 	args := []any{p.MessageID, p.ChatID, p.Text, p.FromUser}
-
-	placeholders := make([]string, len(columns))
-	for i := range columns {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-	}
-
-	q := `insert into prompts (` + strings.Join(columns, ", ") + `) values (` + strings.Join(placeholders, ",") + `)`
+	q := `insert into prompts (message_id, chat_id, text, created_by) values ($1, $2, $3, $4)`
 
 	if _, err := repo.db.ExecContext(ctx, q, args...); err != nil {
 		return fmt.Errorf("saving prompt: %w", err)
@@ -54,9 +45,6 @@ func (repo *promptRepository) FetchPrompt(ctx context.Context, chatID int64, mes
 		&p.Text,
 		&p.FromUser,
 	); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
 		return nil, fmt.Errorf("scanning prompt row: %w", err)
 	}
 

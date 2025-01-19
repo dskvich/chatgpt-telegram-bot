@@ -23,6 +23,8 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/tools"
 )
 
+const DefaultChatTTL = 15 * time.Minute
+
 type Config struct {
 	OpenAIToken                           string        `env:"OPEN_AI_TOKEN,required"`
 	TelegramBotToken                      string        `env:"TELEGRAM_BOT_TOKEN,required"`
@@ -75,7 +77,12 @@ func setupWorkers() (workers.Group, error) {
 	var worker workers.Worker
 	var workerGroup workers.Group
 
-	telegramClient, err := telegram.NewClient(cfg.TelegramBotToken)
+	imageGenerationStyles := map[string]string{
+		"vivid":   "Яркий",
+		"natural": "Естественный",
+	}
+
+	telegramClient, err := telegram.NewClient(cfg.TelegramBotToken, imageGenerationStyles)
 	if err != nil {
 		return nil, fmt.Errorf("creating telegram client: %w", err)
 	}
@@ -86,15 +93,17 @@ func setupWorkers() (workers.Group, error) {
 		return nil, fmt.Errorf("creating db: %w", err)
 	}
 
-	chatRepository := repository.NewChatRepository(15 * time.Minute)
+	chatRepository := repository.NewChatRepository(DefaultChatTTL)
 	promptRepository := repository.NewPromptRepository(db)
 	settingsRepository := repository.NewSettingsRepository(db)
 	chatStyleRepository := repository.NewChatStyleRepository(db)
 
+	supportedModels := []string{"gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"}
+
 	// Initialize tools
 	tools := []openai.ToolFunction{
 		tools.NewGetChatSettings(settingsRepository),
-		tools.NewSetModel(settingsRepository),
+		tools.NewSetModel(settingsRepository, supportedModels),
 		tools.NewUpdateActiveChatStyle(chatStyleRepository),
 		tools.NewCreateChatStyleFromActive(chatStyleRepository),
 		tools.NewActivateChatStyle(chatStyleRepository),
@@ -107,21 +116,37 @@ func setupWorkers() (workers.Group, error) {
 
 	oggToMp3Converter := converter.OggTomp3{}
 
+	const (
+		ttlShort  = 15 * time.Minute
+		ttlMedium = time.Hour
+		ttlLong   = 8 * time.Hour
+		ttlNone   = 0
+	)
+
+	chatTTLOptions := map[string]time.Duration{
+		"ttl_15m":      ttlShort,
+		"ttl_1h":       ttlMedium,
+		"ttl_8h":       ttlLong,
+		"ttl_disabled": ttlNone,
+	}
+
+	drawKeywords := []string{"рисуй", "draw"}
+
 	handlers := []workers.Handler{
 		// non ai commands
 		handler.NewShowInfoMessage(telegramClient),
 		handler.NewClearChatMessage(chatRepository, telegramClient),
 		handler.NewSetTTLMessage(telegramClient),
-		handler.NewSetTTLCallback(telegramClient, chatRepository),
+		handler.NewSetTTLCallback(telegramClient, chatRepository, chatTTLOptions),
 		handler.NewShowSettingsMessage(telegramClient, settingsRepository),
 		handler.NewSetImageStyleMessage(telegramClient),
-		handler.NewSetImageStyleCallback(telegramClient, settingsRepository),
+		handler.NewSetImageStyleCallback(telegramClient, settingsRepository, imageGenerationStyles),
 		handler.NewShowChatStylesMessage(telegramClient, chatStyleRepository),
 
 		// ai commands
 		handler.NewCompleteChatMessage(openAiClient, telegramClient),
-		handler.NewCompleteVoiceMessage(&oggToMp3Converter, openAiClient, promptRepository, telegramClient),
-		handler.NewDrawImageMessage(openAiClient, promptRepository, telegramClient),
+		handler.NewCompleteVoiceMessage(&oggToMp3Converter, openAiClient, promptRepository, telegramClient, drawKeywords),
+		handler.NewDrawImageMessage(openAiClient, promptRepository, telegramClient, drawKeywords),
 		handler.NewDrawImageCallback(openAiClient, promptRepository, telegramClient),
 		handler.NewCompleteImageMessage(openAiClient, telegramClient),
 	}

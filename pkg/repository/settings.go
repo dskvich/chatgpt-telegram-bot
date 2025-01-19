@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 )
 
 type settingsRepository struct {
@@ -17,16 +16,9 @@ func NewSettingsRepository(db *sql.DB) *settingsRepository {
 }
 
 func (repo *settingsRepository) Save(ctx context.Context, chatID int64, key, value string) error {
-	columns := []string{"chat_id", "key", "value"}
 	args := []any{chatID, key, value}
-
-	placeholders := make([]string, len(columns))
-	for i := range columns {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-	}
-
-	query := `INSERT INTO settings (` + strings.Join(columns, ", ") + `)
-		VALUES (` + strings.Join(placeholders, ",") + `)
+	query := `INSERT INTO settings (chat_id, key, value)
+		VALUES ($1, $2, $3)
 		ON CONFLICT (chat_id, key)
 		DO UPDATE SET value = EXCLUDED.value;`
 
@@ -62,13 +54,13 @@ func (repo *settingsRepository) GetAll(ctx context.Context, chatID int64) (map[s
 	settings := make(map[string]string)
 	for rows.Next() {
 		var key, value string
-		if err := rows.Scan(&key, &value); err != nil {
+		if err = rows.Scan(&key, &value); err != nil {
 			return nil, fmt.Errorf("scanning setting row: %w", err)
 		}
 		settings[key] = value
 	}
 
-	if err := rows.Err(); err != nil {
+	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterating setting rows: %w", err)
 	}
 

@@ -64,23 +64,24 @@ func (t *telegramUpdateListener) Start(ctx context.Context) error {
 			return nil
 		case update := <-t.client.GetUpdates():
 			pool <- struct{}{}
-			go func(update tgbotapi.Update) {
+			go func(update *tgbotapi.Update) {
 				defer func() { <-pool }()
 				t.processUpdate(update)
-			}(update)
+			}(&update)
 		default:
 			time.Sleep(t.pollingInterval)
 		}
 	}
 }
 
-func (t *telegramUpdateListener) processUpdate(update tgbotapi.Update) {
+func (t *telegramUpdateListener) processUpdate(update *tgbotapi.Update) {
 	var chatID, userID int64
-	if update.Message != nil {
+	switch {
+	case update.Message != nil:
 		chatID, userID = update.Message.Chat.ID, update.Message.From.ID
-	} else if update.CallbackQuery != nil {
+	case update.CallbackQuery != nil:
 		chatID, userID = update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.From.ID
-	} else {
+	default:
 		slog.Warn("Unknown update type", "update", update)
 		return
 	}
@@ -93,8 +94,8 @@ func (t *telegramUpdateListener) processUpdate(update tgbotapi.Update) {
 	}
 
 	for _, h := range t.handlers {
-		if h.CanHandle(&update) {
-			h.Handle(&update)
+		if h.CanHandle(update) {
+			h.Handle(update)
 			return
 		}
 	}

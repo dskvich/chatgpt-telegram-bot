@@ -19,32 +19,35 @@ type drawImageMessage struct {
 	openAiClient OpenAiClient
 	storage      PromptStorage
 	client       TelegramClient
+	drawKeywords []string
 }
 
 func NewDrawImageMessage(
 	openAiClient OpenAiClient,
 	storage PromptStorage,
 	client TelegramClient,
+	drawKeywords []string,
 ) *drawImageMessage {
 	return &drawImageMessage{
 		openAiClient: openAiClient,
 		storage:      storage,
 		client:       client,
+		drawKeywords: drawKeywords,
 	}
 }
 
-func (*drawImageMessage) CanHandle(u *tgbotapi.Update) bool {
+func (d *drawImageMessage) CanHandle(u *tgbotapi.Update) bool {
 	if u.Message == nil {
 		return false
 	}
 	return strings.HasPrefix(u.Message.Text, "/image") ||
-		domain.CommandText(u.Message.Text).ContainsAny(domain.DrawKeywords)
+		domain.CommandText(u.Message.Text).ContainsAny(d.drawKeywords)
 }
 
 func (d *drawImageMessage) Handle(u *tgbotapi.Update) {
 	chatID := u.Message.Chat.ID
 	messageID := u.Message.MessageID
-	prompt := domain.CommandText(u.Message.Text).ExtractAfterKeywords(domain.DrawKeywords)
+	prompt := domain.CommandText(u.Message.Text).ExtractAfterKeywords(d.drawKeywords)
 
 	if err := d.storage.SavePrompt(context.Background(), &domain.Prompt{
 		ChatID:    chatID,

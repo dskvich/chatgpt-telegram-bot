@@ -21,7 +21,6 @@ func New(level slog.Level) *slog.Logger {
 	}
 
 	var defaultAttrs []slog.Attr
-	// defaultAttrs = append(defaultAttrs, slog.String("app", appName))
 
 	handler := setDefaultHandler(handlerOptions, defaultAttrs)
 	slog.SetDefault(setDefaultHandler(handlerOptions, defaultAttrs))

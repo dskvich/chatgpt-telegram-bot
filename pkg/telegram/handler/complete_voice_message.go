@@ -22,6 +22,7 @@ type completeVoiceMessage struct {
 	openAiClient OpenAiClient
 	saver        VoicePromptSaver
 	client       TelegramClient
+	drawKeywords []string
 }
 
 func NewCompleteVoiceMessage(
@@ -29,12 +30,14 @@ func NewCompleteVoiceMessage(
 	openAiClient OpenAiClient,
 	saver VoicePromptSaver,
 	client TelegramClient,
+	drawKeywords []string,
 ) *completeVoiceMessage {
 	return &completeVoiceMessage{
 		converter:    converter,
 		openAiClient: openAiClient,
 		saver:        saver,
 		client:       client,
+		drawKeywords: drawKeywords,
 	}
 }
 
@@ -91,8 +94,8 @@ func (c *completeVoiceMessage) Handle(u *tgbotapi.Update) {
 	}
 
 	commandText := domain.CommandText(prompt)
-	if commandText.ContainsAny(domain.DrawKeywords) {
-		prompt = commandText.ExtractAfterKeywords(domain.DrawKeywords)
+	if commandText.ContainsAny(c.drawKeywords) {
+		prompt = commandText.ExtractAfterKeywords(c.drawKeywords)
 
 		imgBytes, err := c.openAiClient.GenerateImage(chatID, prompt)
 		if err != nil {

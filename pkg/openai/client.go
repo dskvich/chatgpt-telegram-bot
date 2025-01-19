@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,6 +17,11 @@ import (
 	"github.com/sashabaranov/go-openai/jsonschema"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
+)
+
+const (
+	chatCompletionsRequestMaxTokens = 4096
+	numberOfResultsFromTools        = 2
 )
 
 type ChatRepository interface {
@@ -55,7 +61,7 @@ func NewClient(
 	tools []ToolFunction,
 ) (*client, error) {
 	if token == "" {
-		return nil, fmt.Errorf("token is empty")
+		return nil, errors.New("token is empty")
 	}
 	return &client{
 		token:         token,
@@ -76,7 +82,7 @@ func (c *client) CreateChatCompletion(chatID int64, text, base64image string) (s
 			{Type: "image_url", ImageURL: &domain.ImageURL{URL: "data:image/jpeg;base64," + base64image}},
 		}
 		if text != "" {
-			content = append([]domain.Content{{Type: "text", Text: text}}, content.([]domain.Content)...)
+			content = []domain.Content{{Type: "text", Text: text}}
 		}
 	} else {
 		content = text
@@ -105,12 +111,13 @@ func (c *client) CreateChatCompletion(chatID int64, text, base64image string) (s
 		return "", err
 	}
 
-	if finalResponse, err := c.processChatCompletion(session); err == nil && finalResponse.Content != nil {
-		c.saveSession(chatID, session)
-		return fmt.Sprint(finalResponse.Content), nil
+	finalResponse, err := c.processChatCompletion(session)
+	if err != nil {
+		return "", fmt.Errorf("processing chat completion after tools calls: %w", err)
 	}
 
-	return "", fmt.Errorf("no completion response from API")
+	c.saveSession(chatID, session)
+	return fmt.Sprint(finalResponse.Content), nil
 }
 
 func (c *client) getSession(chatID int64) (*domain.ChatSession, error) {
@@ -167,7 +174,7 @@ func (c *client) processChatCompletion(session *domain.ChatSession) (*domain.Cha
 	}
 
 	if len(resp.Choices) == 0 {
-		return nil, fmt.Errorf("no choices in response")
+		return nil, errors.New("no choices in response")
 	}
 
 	response := &resp.Choices[0].Message
@@ -195,7 +202,7 @@ func (c *client) buildChatCompletionRequest(model string, messages []domain.Chat
 	return &chatCompletionsRequest{
 		Model:     model,
 		Messages:  messages,
-		MaxTokens: 4096,
+		MaxTokens: chatCompletionsRequestMaxTokens,
 		Tools:     tools,
 	}
 }
@@ -302,7 +309,7 @@ func (c *client) callTool(chatID int64, toolCall domain.ToolCall) (string, error
 	results := fn.Call(args)
 
 	// Check and return the results
-	if len(results) != 2 {
+	if len(results) != numberOfResultsFromTools {
 		return "", fmt.Errorf("unexpected number of return values from function %s", toolCall.Function.Name)
 	}
 
@@ -331,7 +338,7 @@ func (c *client) sendChatCompletionRequest(request *chatCompletionsRequest) (*ch
 		return nil, fmt.Errorf("marshaling request: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("creating HTTP request: %w", err)
 	}
@@ -370,7 +377,7 @@ func (c *client) TranscribeAudio(audioFilePath string) (string, error) {
 		return "", err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, apiURL, requestBody)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, apiURL, requestBody)
 	if err != nil {
 		return "", fmt.Errorf("error creating request: %w", err)
 	}
@@ -401,11 +408,10 @@ func (c *client) TranscribeAudio(audioFilePath string) (string, error) {
 	return responseBody.Text, nil
 }
 
-// createMultipartForm creates a multipart form with the file and model fields
 func createMultipartForm(filePath, model string) (*bytes.Buffer, string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, "", fmt.Errorf("error opening file: %w", err)
+		return nil, "", fmt.Errorf("opening file: %w", err)
 	}
 	defer file.Close()
 
@@ -415,19 +421,19 @@ func createMultipartForm(filePath, model string) (*bytes.Buffer, string, error) 
 	// Add the file field
 	fileWriter, err := writer.CreateFormFile("file", filePath)
 	if err != nil {
-		return nil, "", fmt.Errorf("error creating form file: %w", err)
+		return nil, "", fmt.Errorf("creating form file: %w", err)
 	}
 	if _, err := io.Copy(fileWriter, file); err != nil {
-		return nil, "", fmt.Errorf("error copying file: %w", err)
+		return nil, "", fmt.Errorf("copying file: %w", err)
 	}
 
 	// Add the model field
 	if err := writer.WriteField("model", model); err != nil {
-		return nil, "", fmt.Errorf("error writing model field: %w", err)
+		return nil, "", fmt.Errorf("writing model field: %w", err)
 	}
 
 	if err := writer.Close(); err != nil {
-		return nil, "", fmt.Errorf("error closing writer: %w", err)
+		return nil, "", fmt.Errorf("closing writer: %w", err)
 	}
 
 	return &requestBody, writer.FormDataContentType(), nil
@@ -470,7 +476,7 @@ func (c *client) GenerateImage(chatID int64, prompt string) ([]byte, error) {
 		return nil, fmt.Errorf("marshaling chat request: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, apiURL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, apiURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("creating HTTP request: %w", err)
 	}
@@ -495,8 +501,8 @@ func (c *client) GenerateImage(chatID int64, prompt string) ([]byte, error) {
 			B64Json []byte `json:"b64_json"`
 		} `json:"data"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&responseBody); err != nil {
-		return nil, fmt.Errorf("decoding response data: %w", err)
+	if decodeErr := json.NewDecoder(resp.Body).Decode(&responseBody); decodeErr != nil {
+		return nil, fmt.Errorf("decoding response data: %w", decodeErr)
 	}
 
 	if len(responseBody.Data) > 0 {
@@ -504,5 +510,5 @@ func (c *client) GenerateImage(chatID int64, prompt string) ([]byte, error) {
 		return responseBody.Data[0].B64Json, nil
 	}
 
-	return nil, fmt.Errorf("no response from API")
+	return nil, errors.New("no response from API")
 }

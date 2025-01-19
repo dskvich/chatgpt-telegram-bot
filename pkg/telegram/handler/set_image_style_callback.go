@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -15,17 +16,20 @@ type ImageStyleSetter interface {
 }
 
 type setImageStyleCallback struct {
-	client TelegramClient
-	setter ImageStyleSetter
+	client      TelegramClient
+	setter      ImageStyleSetter
+	imageStyles map[string]string
 }
 
 func NewSetImageStyleCallback(
 	client TelegramClient,
 	setter ImageStyleSetter,
+	imageStyles map[string]string,
 ) *setImageStyleCallback {
 	return &setImageStyleCallback{
-		client: client,
-		setter: setter,
+		client:      client,
+		setter:      setter,
+		imageStyles: imageStyles,
 	}
 }
 
@@ -65,14 +69,14 @@ func (s *setImageStyleCallback) Handle(u *tgbotapi.Update) {
 	})
 }
 
-func (*setImageStyleCallback) parseImageStyle(data string) (string, error) {
+func (s *setImageStyleCallback) parseImageStyle(data string) (string, error) {
 	if !strings.HasPrefix(data, domain.ImageStyleCallbackPrefix) {
-		return "", fmt.Errorf("unknown Image Style option: invalid prefix")
+		return "", errors.New("unknown Image Style option: invalid prefix")
 	}
 
 	key := strings.TrimPrefix(data, domain.ImageStyleCallbackPrefix)
 
-	if _, exists := domain.ImageStyles[key]; !exists {
+	if _, exists := s.imageStyles[key]; !exists {
 		return "", fmt.Errorf("unknown Image Style option: %s", key)
 	}
 

@@ -51,14 +51,6 @@ func (d *drawImageCallback) Handle(u *tgbotapi.Update) {
 		return
 	}
 
-	if prompt == nil {
-		d.client.SendTextMessage(domain.TextMessage{
-			ChatID: chatID,
-			Text:   "Sorry, I can't find the original request for generating a similar image. Please try again.",
-		})
-		return
-	}
-
 	imgBytes, err := d.openAiClient.GenerateImage(chatID, prompt.Text)
 	if err != nil {
 		d.client.SendTextMessage(domain.TextMessage{

@@ -50,13 +50,15 @@ func (s *showSettingsMessage) Handle(u *tgbotapi.Update) {
 }
 
 func (*showSettingsMessage) formatForTelegram(data map[string]string) string {
+	const tableWidth = 55
+
 	var sb strings.Builder
 	sb.WriteString("*Системные настройки:*\n\n")
 	sb.WriteString("```\n") // Code block for monospace formatting
 
 	// Generate table headers and underline
 	sb.WriteString(fmt.Sprintf("%-20s | %-30s\n", "Настройка", "Значение"))
-	sb.WriteString(strings.Repeat("-", 55) + "\n")
+	sb.WriteString(strings.Repeat("-", tableWidth) + "\n")
 
 	// Add each setting to the table
 	for key, value := range data {
