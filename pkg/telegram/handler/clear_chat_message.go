@@ -1,38 +1,43 @@
 package handler
 
 import (
+	"context"
+	"fmt"
 	"strings"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-type ChatRepository interface {
-	ClearChat(chatID int64)
-}
-
 type clearChatMessage struct {
-	repo   ChatRepository
-	client TelegramClient
+	chatService    ChatService
+	telegramClient TelegramClient
 }
 
-func NewClearChatMessage(repo ChatRepository, client TelegramClient) *clearChatMessage {
+func NewClearChatMessage(
+	chatService ChatService,
+	telegramClient TelegramClient,
+) *clearChatMessage {
 	return &clearChatMessage{
-		repo:   repo,
-		client: client,
+		chatService:    chatService,
+		telegramClient: telegramClient,
 	}
 }
 
 func (*clearChatMessage) CanHandle(u *tgbotapi.Update) bool {
-	return u.Message != nil && strings.HasPrefix(strings.ToLower(u.Message.Text), "/new")
+	return u.Message != nil &&
+		(strings.HasPrefix(strings.ToLower(u.Message.Text), "/new") ||
+			strings.HasPrefix(strings.ToLower(u.Message.Text), "новый чат"))
 }
 
-func (c *clearChatMessage) Handle(u *tgbotapi.Update) {
-	c.repo.ClearChat(u.Message.Chat.ID)
+func (c *clearChatMessage) Handle(ctx context.Context, u *tgbotapi.Update) {
+	chatID := u.Message.Chat.ID
 
-	c.client.SendTextMessage(domain.TextMessage{
-		ChatID: u.Message.Chat.ID,
-		Text:   "История очищена. Начните новый чат.",
-	})
+	if err := c.chatService.ClearChatHistory(ctx, chatID); err != nil {
+		c.telegramClient.SendError(ctx, chatID, fmt.Errorf("generating response: %s", err))
+		return
+	}
+
+	text := "🧹 История очищена! Начните новый чат. 🚀"
+	c.telegramClient.SendResponse(ctx, chatID, &domain.Response{Text: text})
 }

@@ -187,14 +187,12 @@ func (r *chatStyleRepository) UpdateActiveStyle(ctx context.Context, chatID int6
 		return err
 	}
 
-	updatedDescription := currentDescription + " " + newInstruction
-
 	// Update the description of the currently active style
 	_, err = tx.ExecContext(ctx, `
         UPDATE chat_styles
         SET description = $1
         WHERE chat_id = $2 AND is_active = TRUE
-    `, updatedDescription, chatID)
+    `, newInstruction, chatID)
 	if err != nil {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
 			slog.Error("rollback failed: %v", logger.Err(rollbackErr))
@@ -233,4 +231,19 @@ func (r *chatStyleRepository) GetAllStyles(ctx context.Context, chatID int64) ([
 	}
 
 	return styles, nil
+}
+
+func (r *chatStyleRepository) DeleteAll(ctx context.Context, chatID int64) error {
+	_, err := r.db.ExecContext(ctx, `
+        DELETE FROM chat_styles
+        WHERE chat_id = $1
+    `, chatID)
+	return err
+}
+func (r *chatStyleRepository) DeleteByName(ctx context.Context, chatID int64, name string) error {
+	_, err := r.db.ExecContext(ctx, `
+        DELETE FROM chat_styles
+        WHERE chat_id = $1 AND name = $2
+    `, chatID, name)
+	return err
 }

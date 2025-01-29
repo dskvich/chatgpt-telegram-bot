@@ -3,8 +3,9 @@ package tools
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
-	"github.com/sashabaranov/go-openai/jsonschema"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
 type ChatStyleCreateRepository interface {
@@ -31,12 +32,12 @@ func (c *createChatStyleFromActive) Description() string {
 		"For example, when the user specifies they want to save the current style as 'Concise and to the point.'"
 }
 
-func (c *createChatStyleFromActive) Parameters() jsonschema.Definition {
-	return jsonschema.Definition{
-		Type: jsonschema.Object,
-		Properties: map[string]jsonschema.Definition{
+func (c *createChatStyleFromActive) Parameters() domain.Definition {
+	return domain.Definition{
+		Type: domain.Object,
+		Properties: map[string]domain.Definition{
 			"name": {
-				Type: jsonschema.String,
+				Type: domain.String,
 				Description: "The unique name for the new communication style. " +
 					"Use this when explicitly instructed to create a new style with a specific name. " +
 					"For example: 'Concise and to the point.'",
@@ -47,10 +48,13 @@ func (c *createChatStyleFromActive) Parameters() jsonschema.Definition {
 }
 
 func (c *createChatStyleFromActive) Function() any {
-	return func(chatID int64, name string) (string, error) {
-		if err := c.repo.NewStyleFromActive(context.Background(), chatID, name, "admin"); err != nil {
+	return func(ctx context.Context, chatID int64, name string) (string, error) {
+		slog.DebugContext(ctx, "Tool invoked with args", "chatID", chatID, "name", name)
+
+		if err := c.repo.NewStyleFromActive(ctx, chatID, name, "admin"); err != nil {
 			return "", fmt.Errorf("creating new chat style from active for chat '%d': %w", chatID, err)
 		}
+
 		return fmt.Sprintf("Стиль общения '%s' создан.", name), nil
 	}
 }

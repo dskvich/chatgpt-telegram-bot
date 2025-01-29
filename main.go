@@ -10,11 +10,12 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v9"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/converter"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/services"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram/handler"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/workers"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/auth"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/converter"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/database"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/openai"
@@ -36,7 +37,7 @@ type Config struct {
 }
 
 func main() {
-	slog.SetDefault(logger.New(slog.LevelDebug))
+	slog.SetDefault(slog.New(logger.NewHandler(os.Stderr, logger.DefaultOptions)))
 
 	if err := runMain(); err != nil {
 		slog.Error("shutting down due to error", logger.Err(err))
@@ -93,28 +94,31 @@ func setupWorkers() (workers.Group, error) {
 		return nil, fmt.Errorf("creating db: %w", err)
 	}
 
+	openAIClient, err := openai.NewClient(cfg.OpenAIToken) //, chatRepository, settingsRepository, chatStyleRepository, tools)
+	if err != nil {
+		return nil, fmt.Errorf("creating open ai client: %w", err)
+	}
+
 	chatRepository := repository.NewChatRepository(DefaultChatTTL)
-	promptRepository := repository.NewPromptRepository(db)
+	promptRepository := repository.NewImagePromptRepository(db)
 	settingsRepository := repository.NewSettingsRepository(db)
 	chatStyleRepository := repository.NewChatStyleRepository(db)
 
 	supportedModels := []string{"gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"}
 
-	// Initialize tools
-	tools := []openai.ToolFunction{
+	toolFunctions := []services.ToolFunction{
 		tools.NewGetChatSettings(settingsRepository),
 		tools.NewSetModel(settingsRepository, supportedModels),
 		tools.NewUpdateActiveChatStyle(chatStyleRepository),
 		tools.NewCreateChatStyleFromActive(chatStyleRepository),
 		tools.NewActivateChatStyle(chatStyleRepository),
+		tools.NewDeleteChatStyle(chatStyleRepository),
 	}
 
-	openAiClient, err := openai.NewClient(cfg.OpenAIToken, chatRepository, settingsRepository, chatStyleRepository, tools)
+	toolService, err := services.NewToolService(toolFunctions)
 	if err != nil {
-		return nil, fmt.Errorf("creating open ai client: %w", err)
+		return nil, fmt.Errorf("creating tool service: %w", err)
 	}
-
-	oggToMp3Converter := converter.OggTomp3{}
 
 	const (
 		ttlShort  = 15 * time.Minute
@@ -130,25 +134,38 @@ func setupWorkers() (workers.Group, error) {
 		"ttl_disabled": ttlNone,
 	}
 
-	drawKeywords := []string{"рисуй", "draw"}
+	imageKeywords := []string{"рисуй", "draw"}
+	intentDetector := services.NewIntentDetector(imageKeywords)
+
+	imageService := services.NewImageService(openAIClient, promptRepository, settingsRepository)
+	chatService := services.NewChatService(
+		openAIClient,
+		chatRepository,
+		settingsRepository,
+		chatStyleRepository,
+		toolService,
+		intentDetector,
+		chatTTLOptions,
+		&converter.VoiceToMP3{},
+		imageService,
+	)
 
 	handlers := []workers.Handler{
 		// non ai commands
-		handler.NewShowInfoMessage(telegramClient),
-		handler.NewClearChatMessage(chatRepository, telegramClient),
+		handler.NewShowWelcomeMessage(telegramClient),
+		handler.NewClearChatMessage(chatService, telegramClient),
 		handler.NewSetTTLMessage(telegramClient),
-		handler.NewSetTTLCallback(telegramClient, chatRepository, chatTTLOptions),
-		handler.NewShowSettingsMessage(telegramClient, settingsRepository),
+		handler.NewSetTTLCallback(chatService, telegramClient, chatTTLOptions),
+		handler.NewShowChatSettingsMessage(chatService, telegramClient),
 		handler.NewSetImageStyleMessage(telegramClient),
-		handler.NewSetImageStyleCallback(telegramClient, settingsRepository, imageGenerationStyles),
-		handler.NewShowChatStylesMessage(telegramClient, chatStyleRepository),
+		handler.NewSetImageStyleCallback(imageService, telegramClient, imageGenerationStyles),
+		handler.NewShowChatStylesMessage(chatService, telegramClient),
 
 		// ai commands
-		handler.NewCompleteChatMessage(openAiClient, telegramClient),
-		handler.NewCompleteVoiceMessage(&oggToMp3Converter, openAiClient, promptRepository, telegramClient, drawKeywords),
-		handler.NewDrawImageMessage(openAiClient, promptRepository, telegramClient, drawKeywords),
-		handler.NewDrawImageCallback(openAiClient, promptRepository, telegramClient),
-		handler.NewCompleteImageMessage(openAiClient, telegramClient),
+		handler.NewGenerateImageCallback(imageService, telegramClient),
+		handler.NewGenerateResponseFromVoiceMessage(chatService, telegramClient),
+		handler.NewGenerateResponseFromImageMessage(chatService, telegramClient),
+		handler.NewGenerateResponseMessage(chatService, telegramClient),
 	}
 
 	if worker, err = workers.NewTelegramUpdateListener(

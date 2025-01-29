@@ -8,22 +8,24 @@ import (
 	"path"
 )
 
-type OggTomp3 struct{}
+type VoiceToMP3 struct{}
 
-func (o *OggTomp3) ConvertToMP3(inputPath string) (string, error) {
+func (v *VoiceToMP3) ConvertToMP3(inputPath string) (string, error) {
+	defer os.Remove(inputPath)
+
+	slog.Info("Converting voice message to mp3...", "inputPath", inputPath)
+
 	var (
 		outputPath string
 		err        error
 	)
-
-	slog.Info("Converting voice message to mp3...", "inputPath", inputPath)
-
 	if path.Ext(inputPath) == ".ogg" || path.Ext(inputPath) == ".oga" {
-		outputPath, err = convertAudioToMp3(inputPath)
-		defer os.Remove(inputPath)
+		outputPath, err = v.convertAudioToMp3(inputPath)
 		if err != nil {
 			return "", fmt.Errorf("converting file: %w", err)
 		}
+	} else {
+		return "", fmt.Errorf("invalid voice message format")
 	}
 
 	slog.Info("Conversion successful", "inputPath", inputPath, "outputPath", outputPath)
@@ -31,7 +33,7 @@ func (o *OggTomp3) ConvertToMP3(inputPath string) (string, error) {
 	return outputPath, err
 }
 
-func convertAudioToMp3(filePath string) (string, error) {
+func (v *VoiceToMP3) convertAudioToMp3(filePath string) (string, error) {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		return "", fmt.Errorf("looking for `ffmpeg`: %w", err)
 	}

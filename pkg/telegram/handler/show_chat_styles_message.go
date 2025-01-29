@@ -3,30 +3,24 @@ package handler
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-type ChatStyleRepository interface {
-	GetAllStyles(ctx context.Context, chatID int64) ([]domain.ChatStyle, error)
-}
-
 type showChatStylesMessage struct {
-	client TelegramClient
-	repo   ChatStyleRepository
+	chatService    ChatService
+	telegramClient TelegramClient
 }
 
 func NewShowChatStylesMessage(
-	client TelegramClient,
-	repo ChatStyleRepository,
+	chatService ChatService,
+	telegramClient TelegramClient,
 ) *showChatStylesMessage {
 	return &showChatStylesMessage{
-		client: client,
-		repo:   repo,
+		chatService:    chatService,
+		telegramClient: telegramClient,
 	}
 }
 
@@ -34,23 +28,17 @@ func (*showChatStylesMessage) CanHandle(u *tgbotapi.Update) bool {
 	return u.Message != nil && strings.HasPrefix(u.Message.Text, "/styles")
 }
 
-func (s *showChatStylesMessage) Handle(u *tgbotapi.Update) {
-	styles, err := s.repo.GetAllStyles(context.Background(), u.Message.Chat.ID)
+func (s *showChatStylesMessage) Handle(ctx context.Context, u *tgbotapi.Update) {
+	chatID := u.Message.Chat.ID
+
+	styles, err := s.chatService.GetChatStyles(ctx, chatID)
 	if err != nil {
-		slog.Error("failed to get chat styles", "chatId", u.Message.Chat.ID, logger.Err(err))
-		s.client.SendTextMessage(domain.TextMessage{
-			ChatID: u.Message.Chat.ID,
-			Text:   "Не удалось получить список стилей общения. Пожалуйста, попробуйте позже.",
-		})
+		s.telegramClient.SendError(ctx, chatID, fmt.Errorf("getting chat styles: %s", err))
 		return
 	}
 
-	message := s.formatForTelegram(styles)
-
-	s.client.SendTextMessage(domain.TextMessage{
-		ChatID: u.Message.Chat.ID,
-		Text:   message,
-	})
+	text := s.formatForTelegram(styles)
+	s.telegramClient.SendResponse(ctx, chatID, &domain.Response{Text: text})
 }
 
 func (*showChatStylesMessage) formatForTelegram(styles []domain.ChatStyle) string {

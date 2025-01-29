@@ -2,14 +2,12 @@ package telegram
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
-	"path"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/render"
@@ -19,14 +17,7 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 )
 
-const (
-	maxTelegramMessageLength = 4096
-
-	responseDeliveryFailedMessage = "Не удалось доставить ответ"
-
-	dirPermissions  = 0o755 // Owner: read, write, execute; Others: read, execute
-	filePermissions = 0o600 // Owner: read, write; Others: no access
-)
+const maxTelegramMessageLength = 4096
 
 type client struct {
 	token     string
@@ -60,23 +51,54 @@ func (c *client) GetUpdates() tgbotapi.UpdatesChannel {
 	return c.updatesCh
 }
 
-func (c *client) SendTextMessage(msg domain.TextMessage) {
-	text := render.ToHTML(msg.Text)
-
-	for text != "" {
-		if utf8.RuneCountInString(text) <= maxTelegramMessageLength {
-			if err := c.send(msg.ChatID, text); err != nil {
-				c.handleError(msg.ChatID, err)
-			}
-			break
-		}
-
-		cutIndex := c.findCutIndex(text, maxTelegramMessageLength)
-		if err := c.send(msg.ChatID, text); err != nil {
-			c.handleError(msg.ChatID, err)
-		}
-		text = text[cutIndex:]
+func (c *client) SendResponse(ctx context.Context, chatID int64, response *domain.Response) {
+	if response == nil {
+		return
 	}
+
+	if response.Text != "" {
+		if err := c.sendText(ctx, chatID, response.Text); err != nil {
+			c.handleError(ctx, chatID, err)
+		}
+	}
+
+	if response.Image != nil {
+		if err := c.sendImage(ctx, chatID, response.Image); err != nil {
+			c.handleError(ctx, chatID, err)
+		}
+	}
+}
+
+func (c *client) SendError(ctx context.Context, chatID int64, err error) {
+	slog.ErrorContext(ctx, "error occurred", "chatID", chatID, logger.Err(err))
+
+	if err := c.sendText(ctx, chatID, fmt.Sprintf("❌ %s", err.Error())); err != nil {
+		c.handleError(ctx, chatID, err)
+	}
+}
+
+func (c *client) sendText(ctx context.Context, chatID int64, text string) error {
+	htmlText := render.ToHTML(text)
+
+	for htmlText != "" {
+		if utf8.RuneCountInString(htmlText) <= maxTelegramMessageLength {
+			if err := c.send(chatID, htmlText); err != nil {
+				return err
+			}
+			return nil
+		}
+
+		cutIndex := c.findCutIndex(htmlText, maxTelegramMessageLength)
+		if err := c.send(chatID, htmlText); err != nil {
+			return err
+		}
+		htmlText = htmlText[cutIndex:]
+
+		// 1 message per second
+		time.Sleep(time.Second)
+	}
+
+	return nil
 }
 
 func (c *client) findCutIndex(text string, maxLength int) int {
@@ -101,42 +123,43 @@ func (c *client) send(chatID int64, text string) error {
 	return err
 }
 
-func (c *client) SendImageMessage(msg domain.ImageMessage) {
+func (c *client) sendImage(ctx context.Context, chatID int64, image *domain.Image) error {
+	data := fmt.Sprintf("%s%d", domain.GenImageCallbackPrefix, image.ID)
+
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Еще", domain.RedrawCallback),
+			tgbotapi.NewInlineKeyboardButtonData("Еще", data),
 		),
 	)
 
-	m := tgbotapi.NewPhoto(msg.ChatID, tgbotapi.FileBytes{Bytes: msg.Bytes})
+	m := tgbotapi.NewPhoto(chatID, tgbotapi.FileBytes{Bytes: image.Data})
 	m.ReplyMarkup = keyboard
 
 	if _, err := c.bot.Send(m); err != nil {
-		c.handleError(msg.ChatID, err)
+		return err
+	}
+
+	return nil
+}
+
+func (c *client) SendKeyboard(ctx context.Context, chatID int64, options map[string]string, title string) {
+	var row []tgbotapi.InlineKeyboardButton
+
+	for label, callback := range options {
+		row = append(row, tgbotapi.NewInlineKeyboardButtonData(label, callback))
+	}
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(row)
+
+	message := tgbotapi.NewMessage(chatID, title)
+	message.ReplyMarkup = keyboard
+
+	if _, err := c.bot.Send(message); err != nil {
+		c.handleError(ctx, chatID, err)
 	}
 }
 
-func (c *client) SendTTLMessage(msg domain.TTLMessage) {
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("15min", "ttl_15m"),
-			tgbotapi.NewInlineKeyboardButtonData("1h", "ttl_1h"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("8h", "ttl_8h"),
-			tgbotapi.NewInlineKeyboardButtonData("Disabled", "ttl_disabled"),
-		),
-	)
-
-	m := tgbotapi.NewMessage(msg.ChatID, "Select TTL option:")
-	m.ReplyMarkup = keyboard
-
-	if _, err := c.bot.Send(m); err != nil {
-		c.handleError(msg.ChatID, err)
-	}
-}
-
-func (c *client) SendImageStyleMessage(msg domain.TextMessage) {
+func (c *client) SendImageStyleMessage(ctx context.Context, msg domain.TextMessage) {
 	var keyboardButtons []tgbotapi.InlineKeyboardButton
 	for key, label := range c.imageStyles {
 		callbackData := "image_style_" + key // Add the prefix
@@ -154,80 +177,45 @@ func (c *client) SendImageStyleMessage(msg domain.TextMessage) {
 	m.ReplyMarkup = keyboard
 
 	if _, err := c.bot.Send(m); err != nil {
-		c.handleError(msg.ChatID, err)
+		c.handleError(ctx, msg.ChatID, err)
 	}
 }
 
-func (c *client) SendCallbackMessage(msg domain.CallbackMessage) {
-	m := tgbotapi.NewCallback(msg.CallbackQueryID, "")
+func (c *client) AcknowledgeCallback(ctx context.Context, callbackQueryID string) {
+	m := tgbotapi.NewCallback(callbackQueryID, "")
 
 	_, _ = c.bot.Send(m)
 }
 
-func (c *client) handleError(chatID int64, err error) {
-	slog.Error("sending message error", "chatID", chatID, logger.Err(err))
+func (c *client) handleError(ctx context.Context, chatID int64, err error) {
+	slog.ErrorContext(ctx, "Error during sending message", logger.Err(err))
 
-	m := tgbotapi.NewMessage(chatID, responseDeliveryFailedMessage)
+	m := tgbotapi.NewMessage(chatID, "❌ Не удалось доставить ответ")
 
 	_, _ = c.bot.Send(m)
 }
 
-func (c *client) DownloadFile(fileID string) (string, error) {
+func (c *client) DownloadFile(ctx context.Context, fileID string) ([]byte, error) {
 	file, err := c.bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
 	if err != nil {
-		return "", fmt.Errorf("getting file: %w", err)
+		return nil, fmt.Errorf("getting file: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, file.Link(c.token), http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, file.Link(c.token), http.NoBody)
 	if err != nil {
-		return "", fmt.Errorf("creating request: %w", err)
+		return nil, fmt.Errorf("creating request: %w", err)
 	}
 
 	resp, err := c.bot.Client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("executing request: %w", err)
+		return nil, fmt.Errorf("executing request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	bytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("reading response body: %w", err)
+		return nil, fmt.Errorf("reading response body: %w", err)
 	}
 
-	filePath := path.Join("app", file.FilePath)
-	if err := os.MkdirAll(path.Dir(filePath), dirPermissions); err != nil {
-		return "", fmt.Errorf("creating directories for '%s': %w", filePath, err)
-	}
-
-	if err := os.WriteFile(filePath, bytes, filePermissions); err != nil {
-		return "", fmt.Errorf("saving file: %w", err)
-	}
-
-	return filePath, nil
-}
-
-func (c *client) GetFile(fileID string) (string, error) {
-	file, err := c.bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
-	if err != nil {
-		return "", fmt.Errorf("getting file: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, file.Link(c.token), http.NoBody)
-	if err != nil {
-		return "", fmt.Errorf("creating request: %w", err)
-	}
-
-	resp, err := c.bot.Client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("executing request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	bytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("reading response body: %w", err)
-	}
-
-	base64Image := base64.StdEncoding.EncodeToString(bytes)
-	return base64Image, nil
+	return bytes, nil
 }

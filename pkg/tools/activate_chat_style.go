@@ -3,8 +3,9 @@ package tools
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
-	"github.com/sashabaranov/go-openai/jsonschema"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
 type ChatStyleActivateRepository interface {
@@ -30,12 +31,12 @@ func (a *activateChatStyle) Description() string {
 		"based on its unique name."
 }
 
-func (a *activateChatStyle) Parameters() jsonschema.Definition {
-	return jsonschema.Definition{
-		Type: jsonschema.Object,
-		Properties: map[string]jsonschema.Definition{
+func (a *activateChatStyle) Parameters() domain.Definition {
+	return domain.Definition{
+		Type: domain.Object,
+		Properties: map[string]domain.Definition{
 			"name": {
-				Type:        jsonschema.String,
+				Type:        domain.String,
 				Description: "The unique name of the communication style to activate.",
 			},
 		},
@@ -45,8 +46,10 @@ func (a *activateChatStyle) Parameters() jsonschema.Definition {
 
 // Function provides the logic to activate a chat style by retrieving and applying it.
 func (a *activateChatStyle) Function() any {
-	return func(chatID int64, name string) (string, error) {
-		if err := a.repo.Activate(context.Background(), chatID, name); err != nil {
+	return func(ctx context.Context, chatID int64, name string) (string, error) {
+		slog.DebugContext(ctx, "Tool invoked with args", "chatID", chatID, "name", name)
+
+		if err := a.repo.Activate(ctx, chatID, name); err != nil {
 			return "", fmt.Errorf("activating chat style '%s' for chat '%d': %w", name, chatID, err)
 		}
 

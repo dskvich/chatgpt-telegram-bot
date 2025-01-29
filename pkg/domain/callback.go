@@ -1,6 +1,6 @@
 package domain
 
 const (
-	RedrawCallback     = "redraw"
-	SetChatTTLCallback = "ttl_"
+	GenImageCallbackPrefix   = "genimg_"
+	SetChatTTLCallbackPrefix = "ttl_"
 )

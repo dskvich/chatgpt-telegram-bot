@@ -11,25 +11,21 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
-type ImageStyleSetter interface {
-	Save(ctx context.Context, chatID int64, key, value string) error
-}
-
 type setImageStyleCallback struct {
-	client      TelegramClient
-	setter      ImageStyleSetter
-	imageStyles map[string]string
+	imageService   ImageService
+	telegramClient TelegramClient
+	imageStyles    map[string]string
 }
 
 func NewSetImageStyleCallback(
-	client TelegramClient,
-	setter ImageStyleSetter,
+	imageService ImageService,
+	telegramClient TelegramClient,
 	imageStyles map[string]string,
 ) *setImageStyleCallback {
 	return &setImageStyleCallback{
-		client:      client,
-		setter:      setter,
-		imageStyles: imageStyles,
+		imageService:   imageService,
+		telegramClient: telegramClient,
+		imageStyles:    imageStyles,
 	}
 }
 
@@ -37,36 +33,25 @@ func (*setImageStyleCallback) CanHandle(u *tgbotapi.Update) bool {
 	return u.CallbackQuery != nil && strings.HasPrefix(u.CallbackQuery.Data, domain.ImageStyleCallbackPrefix)
 }
 
-func (s *setImageStyleCallback) Handle(u *tgbotapi.Update) {
+func (s *setImageStyleCallback) Handle(ctx context.Context, u *tgbotapi.Update) {
+	defer s.telegramClient.AcknowledgeCallback(ctx, u.CallbackQuery.ID)
+
 	chatID := u.CallbackQuery.Message.Chat.ID
-	callbackQueryID := u.CallbackQuery.ID
+	data := u.CallbackQuery.Data
 
-	imageStyle, err := s.parseImageStyle(u.CallbackQuery.Data)
+	imageStyle, err := s.parseImageStyle(data)
 	if err != nil {
-		s.client.SendTextMessage(domain.TextMessage{
-			ChatID: chatID,
-			Text:   err.Error(),
-		})
+		s.telegramClient.SendError(ctx, chatID, fmt.Errorf("parsing image styles: %s", err))
 		return
 	}
 
-	err = s.setter.Save(context.Background(), chatID, domain.ImageStyleKey, imageStyle)
-	if err != nil {
-		s.client.SendTextMessage(domain.TextMessage{
-			ChatID: chatID,
-			Text:   err.Error(),
-		})
+	if err := s.imageService.SetImageStyle(ctx, chatID, imageStyle); err != nil {
+		s.telegramClient.SendError(ctx, chatID, fmt.Errorf("setting image style: %s", err))
 		return
 	}
 
-	s.client.SendCallbackMessage(domain.CallbackMessage{
-		CallbackQueryID: callbackQueryID,
-	})
-
-	s.client.SendTextMessage(domain.TextMessage{
-		ChatID: chatID,
-		Text:   fmt.Sprintf("Стиль изображения успешно установлен: %v", imageStyle),
-	})
+	text := "✨Стиль изображения успешно установлен: " + imageStyle
+	s.telegramClient.SendResponse(ctx, chatID, &domain.Response{Text: text})
 }
 
 func (s *setImageStyleCallback) parseImageStyle(data string) (string, error) {

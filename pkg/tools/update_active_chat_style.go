@@ -3,8 +3,9 @@ package tools
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
-	"github.com/sashabaranov/go-openai/jsonschema"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
 type ChatStyleUpdateRepository interface {
@@ -32,12 +33,12 @@ func (u *updateActiveChatStyle) Description() string {
 		"this tool will incorporate the new instruction into the existing style description."
 }
 
-func (u *updateActiveChatStyle) Parameters() jsonschema.Definition {
-	return jsonschema.Definition{
-		Type: jsonschema.Object,
-		Properties: map[string]jsonschema.Definition{
+func (u *updateActiveChatStyle) Parameters() domain.Definition {
+	return domain.Definition{
+		Type: domain.Object,
+		Properties: map[string]domain.Definition{
 			"newInstruction": {
-				Type: jsonschema.String,
+				Type: domain.String,
 				Description: "A new instruction to enhance the current communication style. " +
 					"For example: 'Add a touch of humor.' This instruction will be appended to the existing description.",
 			},
@@ -47,10 +48,13 @@ func (u *updateActiveChatStyle) Parameters() jsonschema.Definition {
 }
 
 func (u *updateActiveChatStyle) Function() any {
-	return func(chatID int64, newInstruction string) (string, error) {
-		if err := u.repo.UpdateActiveStyle(context.Background(), chatID, newInstruction); err != nil {
+	return func(ctx context.Context, chatID int64, newInstruction string) (string, error) {
+		slog.DebugContext(ctx, "Tool invoked with args", "chatID", chatID, "newInstruction", newInstruction)
+
+		if err := u.repo.UpdateActiveStyle(ctx, chatID, newInstruction); err != nil {
 			return "", fmt.Errorf("updating active chat style for chat '%d': %w", chatID, err)
 		}
+
 		return "Стиль общения обновлен", nil
 	}
 }

@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/sashabaranov/go-openai/jsonschema"
-
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
 type ChatSettingsGetRepository interface {
@@ -32,18 +30,19 @@ func (g *getChatSettings) Description() string {
 	return "Get telegram chat settings"
 }
 
-func (g *getChatSettings) Parameters() jsonschema.Definition {
-	return jsonschema.Definition{
-		Type: jsonschema.Object,
+func (g *getChatSettings) Parameters() domain.Definition {
+	return domain.Definition{
+		Type: domain.Object,
 	}
 }
 
 func (g *getChatSettings) Function() any {
-	return func(chatID int64) (string, error) {
-		settings, err := g.repo.GetAll(context.Background(), chatID)
+	return func(ctx context.Context, chatID int64) (string, error) {
+		slog.DebugContext(ctx, "Tool invoked with args", "chatID", chatID)
+
+		settings, err := g.repo.GetAll(ctx, chatID)
 		if err != nil {
-			slog.Error("failed to get chat settings", "chatId", chatID, logger.Err(err))
-			return "", err
+			return "", fmt.Errorf("getting settings for chat '%d': %w", chatID, err)
 		}
 
 		return fmt.Sprint(settings), nil

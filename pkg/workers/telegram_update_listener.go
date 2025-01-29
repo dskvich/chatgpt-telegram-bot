@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
@@ -13,7 +14,7 @@ import (
 
 type Handler interface {
 	CanHandle(*tgbotapi.Update) bool
-	Handle(*tgbotapi.Update)
+	Handle(context.Context, *tgbotapi.Update)
 }
 
 type Authenticator interface {
@@ -22,7 +23,7 @@ type Authenticator interface {
 
 type TelegramClient interface {
 	GetUpdates() tgbotapi.UpdatesChannel
-	SendTextMessage(domain.TextMessage)
+	SendResponse(ctx context.Context, chatID int64, response *domain.Response)
 }
 
 type telegramUpdateListener struct {
@@ -75,6 +76,8 @@ func (t *telegramUpdateListener) Start(ctx context.Context) error {
 }
 
 func (t *telegramUpdateListener) processUpdate(update *tgbotapi.Update) {
+	ctx := logger.ContextWithRequestID(context.Background(), update.UpdateID)
+
 	var chatID, userID int64
 	switch {
 	case update.Message != nil:
@@ -82,32 +85,32 @@ func (t *telegramUpdateListener) processUpdate(update *tgbotapi.Update) {
 	case update.CallbackQuery != nil:
 		chatID, userID = update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.From.ID
 	default:
-		slog.Warn("Unknown update type", "update", update)
+		slog.WarnContext(ctx, "Unknown update type", "update", update)
 		return
 	}
 
-	slog.Info("Processing update", "update", update)
+	slog.InfoContext(ctx, "Processing update", "chatID", chatID, "userID", userID)
 
 	if !t.authenticator.IsAuthorized(userID) {
-		t.respondUnauthorized(chatID, userID)
+		slog.WarnContext(ctx, "Unauthorized access attempt")
+
+		t.respondUnauthorized(ctx, chatID, userID)
 		return
 	}
 
 	for _, h := range t.handlers {
 		if h.CanHandle(update) {
-			h.Handle(update)
+			slog.InfoContext(ctx, "Calling handler", "handler", fmt.Sprintf("%T", h))
+
+			h.Handle(ctx, update)
 			return
 		}
 	}
 
-	slog.Warn("No handler found for update", "update", update)
+	slog.WarnContext(ctx, "No handler found for update")
 }
 
-func (t *telegramUpdateListener) respondUnauthorized(chatID, userID int64) {
-	slog.Warn("Unauthorized access attempt", "userID", userID, "chatID", chatID)
-
-	t.client.SendTextMessage(domain.TextMessage{
-		ChatID: chatID,
-		Text:   fmt.Sprintf("User ID %d is not authorized", userID),
-	})
+func (t *telegramUpdateListener) respondUnauthorized(ctx context.Context, chatID, userID int64) {
+	text := fmt.Sprintf("User ID %d is not authorized", userID)
+	t.client.SendResponse(ctx, chatID, &domain.Response{Text: text})
 }
