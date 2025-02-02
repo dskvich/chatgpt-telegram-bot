@@ -104,7 +104,14 @@ func setupWorkers() (workers.Group, error) {
 	settingsRepository := repository.NewSettingsRepository(db)
 	chatStyleRepository := repository.NewChatStyleRepository(db)
 
-	supportedModels := []string{"gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"}
+	// Price per 1M tokens (Input/Output)
+	supportedModels := []string{
+		"gpt-4o-mini",   // $0.15/$0.60
+		"gpt-3.5-turbo", // $0.50/$1.50
+		"o3-mini",       // $1.10/$4.40
+		//"gpt-4o",        // $2.50/$10.00
+		//"gpt-4-turbo",   // $10.00/$30.00
+	}
 
 	toolFunctions := []services.ToolFunction{
 		tools.NewGetChatSettings(settingsRepository),
