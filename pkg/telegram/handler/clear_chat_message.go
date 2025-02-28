@@ -26,8 +26,8 @@ func NewClearChatMessage(
 
 func (*clearChatMessage) CanHandle(u *tgbotapi.Update) bool {
 	return u.Message != nil &&
-		(strings.HasPrefix(strings.ToLower(u.Message.Text), "/new") ||
-			strings.HasPrefix(strings.ToLower(u.Message.Text), "новый чат"))
+		(strings.ToLower(u.Message.Text) == "/new" ||
+			strings.HasSuffix(strings.ToLower(u.Message.Text), "новый чат"))
 }
 
 func (c *clearChatMessage) Handle(ctx context.Context, u *tgbotapi.Update) {
