@@ -12,9 +12,8 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
-type Handler interface {
-	CanHandle(*tgbotapi.Update) bool
-	Handle(context.Context, *tgbotapi.Update)
+type Registry interface {
+	HandleUpdate(ctx context.Context, update *tgbotapi.Update)
 }
 
 type Authenticator interface {
@@ -29,7 +28,7 @@ type TelegramClient interface {
 type telegramUpdateListener struct {
 	client          TelegramClient
 	authenticator   Authenticator
-	handlers        []Handler
+	registry        Registry
 	poolSize        int
 	pollingInterval time.Duration
 }
@@ -37,14 +36,14 @@ type telegramUpdateListener struct {
 func NewTelegramUpdateListener(
 	client TelegramClient,
 	authenticator Authenticator,
-	handlers []Handler,
+	registry Registry,
 	poolSize int,
 	pollingInterval time.Duration,
 ) (*telegramUpdateListener, error) {
 	return &telegramUpdateListener{
 		client:          client,
 		authenticator:   authenticator,
-		handlers:        handlers,
+		registry:        registry,
 		poolSize:        poolSize,
 		pollingInterval: pollingInterval,
 	}, nil
@@ -98,16 +97,7 @@ func (t *telegramUpdateListener) processUpdate(update *tgbotapi.Update) {
 		return
 	}
 
-	for _, h := range t.handlers {
-		if h.CanHandle(update) {
-			slog.InfoContext(ctx, "Calling handler", "handler", fmt.Sprintf("%T", h))
-
-			h.Handle(ctx, update)
-			return
-		}
-	}
-
-	slog.WarnContext(ctx, "No handler found for update")
+	t.registry.HandleUpdate(ctx, update)
 }
 
 func (t *telegramUpdateListener) respondUnauthorized(ctx context.Context, chatID, userID int64) {

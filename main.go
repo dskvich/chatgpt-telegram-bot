@@ -157,7 +157,7 @@ func setupWorkers() (workers.Group, error) {
 		imageService,
 	)
 
-	handlers := []workers.Handler{
+	registry := telegram.NewRegistry(
 		// non ai commands
 		handler.NewShowWelcomeMessage(telegramClient),
 		handler.NewClearChatMessage(chatService, telegramClient),
@@ -173,12 +173,12 @@ func setupWorkers() (workers.Group, error) {
 		handler.NewGenerateResponseFromVoiceMessage(chatService, telegramClient),
 		handler.NewGenerateResponseFromImageMessage(chatService, telegramClient),
 		handler.NewGenerateResponseMessage(chatService, telegramClient),
-	}
+	)
 
 	if worker, err = workers.NewTelegramUpdateListener(
 		telegramClient,
 		authenticator,
-		handlers,
+		registry,
 		cfg.TelegramUpdateListenerPoolSize,
 		cfg.TelegramUpdateListenerPollingInterval,
 	); err == nil {
