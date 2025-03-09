@@ -105,7 +105,10 @@ func (c *chatService) parseTextModel(modelRaw string) (string, error) {
 }
 
 func (c *chatService) SendImageModels(ctx context.Context, chatID int64) {
-
+	c.responseCh <- domain.Response{
+		ChatID: chatID,
+		Text:   "🚧 В разработке 🚧",
+	}
 }
 
 func (c *chatService) SetImageModel(ctx context.Context, chatID int64, model string) {
@@ -139,7 +142,10 @@ func (c *chatService) SendTTLOptions(ctx context.Context, chatID int64) {
 
 	slog.DebugContext(ctx, "send ttl options", "chatTTLOptions", chatTTLOptions)
 
-	// TODO: send keyboard
+	c.responseCh <- domain.Response{
+		ChatID: chatID,
+		Text:   "🚧 В разработке 🚧",
+	}
 }
 
 func (c *chatService) SetChatTTL(ctx context.Context, chatID int64, ttl string) {
@@ -164,7 +170,10 @@ func (c *chatService) SetChatTTL(ctx context.Context, chatID int64, ttl string) 
 }
 
 func (c *chatService) SendSystemPrompt(ctx context.Context, chatID int64) {
-	// TODO: send prompt from settings
+	c.responseCh <- domain.Response{
+		ChatID: chatID,
+		Text:   "🚧 В разработке 🚧",
+	}
 }
 
 func (c *chatService) SetSystemPrompt(ctx context.Context, chatID int64, prompt string) {
