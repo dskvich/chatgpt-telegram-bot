@@ -216,7 +216,7 @@ func (c *chatService) GetChatByID(ctx context.Context, chatID int64) (*domain.Ch
 		settings.TextModel = domain.Gpt4oMiniModel
 	}
 	if settings.TTL == 0 {
-		settings.TTL = time.Minute
+		settings.TTL = time.Minute * 15
 	}
 
 	chat, lastUpdate, ok := c.chatRepo.GetByID(chatID)
