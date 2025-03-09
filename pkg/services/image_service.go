@@ -4,117 +4,110 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
+	"strings"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
 type OpenAIImageGenerator interface {
-	GenerateImage(ctx context.Context, prompt, style string) ([]byte, error)
+	GenerateImage(ctx context.Context, prompt string) ([]byte, error)
 }
 
-type ImagePromptsRepository interface {
-	Save(ctx context.Context, i *domain.ImagePrompt) (int64, error)
-	GetPrompt(ctx context.Context, imageID int64) (string, error)
+type PromptsRepository interface {
+	Save(ctx context.Context, prompt string) (int64, error)
+	GetByID(ctx context.Context, id int64) (string, error)
 }
 
 type imageService struct {
 	openAIImageGenerator OpenAIImageGenerator
-	imagePromptsRepo     ImagePromptsRepository
-	settingsRepo         SettingsRepository
+	promptsRepo          PromptsRepository
+	responseCh           chan<- domain.Response
 }
 
 func NewImageService(
 	openAIImageGenerator OpenAIImageGenerator,
-	imagePromptsRepo ImagePromptsRepository,
-	settingsRepo SettingsRepository,
+	promptsRepo PromptsRepository,
+	responseCh chan<- domain.Response,
 ) *imageService {
 	return &imageService{
 		openAIImageGenerator: openAIImageGenerator,
-		imagePromptsRepo:     imagePromptsRepo,
-		settingsRepo:         settingsRepo,
+		promptsRepo:          promptsRepo,
+		responseCh:           responseCh,
 	}
 }
 
-func (s *imageService) SetImageStyle(ctx context.Context, chatID int64, style string) error {
-	if err := s.settingsRepo.Save(ctx, chatID, domain.ImageStyleKey, style); err != nil {
-		return fmt.Errorf("saving image style: %w", err)
-	}
-
-	return nil
-}
-
-func (s *imageService) GenerateImage(ctx context.Context, chatID int64, prompt, user string) (*domain.Image, error) {
+func (s *imageService) GenerateImage(ctx context.Context, chatID int64, prompt string) {
 	slog.InfoContext(ctx, "Starting image generation", "prompt", prompt)
 
-	imagePrompt := &domain.ImagePrompt{
-		ChatID:   chatID,
-		Prompt:   prompt,
-		FromUser: user,
-	}
-
-	imageID, err := s.imagePromptsRepo.Save(ctx, imagePrompt)
+	promptID, err := s.promptsRepo.Save(ctx, prompt)
 	if err != nil {
-		return nil, fmt.Errorf("saving image prompt: %w", err)
+		s.responseCh <- domain.Response{ChatID: chatID, Err: err}
+		return
 	}
 
-	slog.InfoContext(ctx, "Image prompt saved successfully", "imageID", imageID)
+	slog.InfoContext(ctx, "Prompt saved", "promptID", promptID)
 
-	settings, err := s.settingsRepo.GetAll(ctx, chatID)
+	imageData, err := s.openAIImageGenerator.GenerateImage(ctx, prompt)
 	if err != nil {
-		return nil, fmt.Errorf("getting system setting: %w", err)
+		s.responseCh <- domain.Response{ChatID: chatID, Err: err}
+		return
 	}
 
-	style, found := settings[domain.ImageStyleKey]
-	if !found {
-		style = domain.ImageStyleDefault
+	slog.InfoContext(ctx, "Image generated", "size", len(imageData))
+
+	s.responseCh <- domain.Response{
+		ChatID: chatID,
+		Image: &domain.Image{
+			PromptID: promptID,
+			Data:     imageData,
+		},
 	}
-
-	slog.InfoContext(ctx, "Sending request to generate image", "style", style)
-
-	imageData, err := s.openAIImageGenerator.GenerateImage(ctx, prompt, style)
-	if err != nil {
-		return nil, fmt.Errorf("generating image: %w", err)
-	}
-
-	slog.InfoContext(ctx, "Image generated successfully", "imageBytes", len(imageData))
-
-	return &domain.Image{
-		ID:   imageID,
-		Data: imageData,
-	}, nil
 }
 
-func (s *imageService) GenerateImageByID(ctx context.Context, chatID, imageID int64) (*domain.Image, error) {
-	slog.InfoContext(ctx, "Starting generation image by imageID", "imageID", imageID)
+func (s *imageService) GenerateImageByPromptID(ctx context.Context, chatID int64, imageIDRaw string) {
+	slog.InfoContext(ctx, "Starting generation image by imageID", "imageIDRaw", imageIDRaw)
 
-	prompt, err := s.imagePromptsRepo.GetPrompt(ctx, imageID)
+	imageID, err := s.parseImageID(imageIDRaw)
 	if err != nil {
-		return nil, fmt.Errorf("getting prompt: %w", err)
+		s.responseCh <- domain.Response{ChatID: chatID, Err: fmt.Errorf("parsing image PromptID: %w", err)}
+		return
 	}
 
-	slog.InfoContext(ctx, "Prompt fetched successfully", "prompt", prompt)
+	slog.InfoContext(ctx, "ImageID parsed", "imageID", imageID)
 
-	settings, err := s.settingsRepo.GetAll(ctx, chatID)
+	prompt, err := s.promptsRepo.GetByID(ctx, imageID)
 	if err != nil {
-		return nil, fmt.Errorf("getting system setting: %w", err)
+		s.responseCh <- domain.Response{ChatID: chatID, Err: fmt.Errorf("getting prompt: %w", err)}
+		return
 	}
 
-	style, found := settings[domain.ImageStyleKey]
-	if !found {
-		style = domain.ImageStyleDefault
-	}
+	slog.InfoContext(ctx, "Prompt fetched", "prompt", prompt)
 
-	slog.InfoContext(ctx, "Sending request to generate image", "style", style)
-
-	imageData, err := s.openAIImageGenerator.GenerateImage(ctx, prompt, style)
+	imageData, err := s.openAIImageGenerator.GenerateImage(ctx, prompt)
 	if err != nil {
-		return nil, fmt.Errorf("generating image: %w", err)
+		s.responseCh <- domain.Response{ChatID: chatID, Err: fmt.Errorf("generating image: %w", err)}
+		return
 	}
 
-	slog.InfoContext(ctx, "Image generated successfully", "imageBytes", len(imageData))
+	slog.InfoContext(ctx, "Image generated", "size", len(imageData))
 
-	return &domain.Image{
-		ID:   imageID,
-		Data: imageData,
-	}, nil
+	s.responseCh <- domain.Response{
+		ChatID: chatID,
+		Image: &domain.Image{
+			PromptID: imageID,
+			Data:     imageData,
+		},
+	}
+}
+
+func (s *imageService) parseImageID(imageIDRaw string) (int64, error) {
+	idStr := strings.TrimPrefix(imageIDRaw, domain.GenImageCallbackPrefix)
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid imageID: %s", imageIDRaw)
+	}
+
+	return id, nil
 }

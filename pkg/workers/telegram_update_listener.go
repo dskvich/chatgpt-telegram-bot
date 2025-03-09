@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
+	"sync"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -12,7 +12,7 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
-type Registry interface {
+type Handler interface {
 	HandleUpdate(ctx context.Context, update *tgbotapi.Update)
 }
 
@@ -22,30 +22,29 @@ type Authenticator interface {
 
 type TelegramClient interface {
 	GetUpdates() tgbotapi.UpdatesChannel
-	SendResponse(ctx context.Context, chatID int64, response *domain.Response)
+	SendResponse(ctx context.Context, response *domain.Response)
+	AcknowledgeCallback(ctx context.Context, callbackQueryID string)
 }
 
 type telegramUpdateListener struct {
-	client          TelegramClient
-	authenticator   Authenticator
-	registry        Registry
-	poolSize        int
-	pollingInterval time.Duration
+	client        TelegramClient
+	authenticator Authenticator
+	handler       Handler
+	responseCh    <-chan domain.Response
+	wg            sync.WaitGroup
 }
 
 func NewTelegramUpdateListener(
 	client TelegramClient,
 	authenticator Authenticator,
-	registry Registry,
-	poolSize int,
-	pollingInterval time.Duration,
+	handler Handler,
+	responseCh <-chan domain.Response,
 ) (*telegramUpdateListener, error) {
 	return &telegramUpdateListener{
-		client:          client,
-		authenticator:   authenticator,
-		registry:        registry,
-		poolSize:        poolSize,
-		pollingInterval: pollingInterval,
+		client:        client,
+		authenticator: authenticator,
+		handler:       handler,
+		responseCh:    responseCh,
 	}, nil
 }
 
@@ -55,27 +54,31 @@ func (t *telegramUpdateListener) Start(ctx context.Context) error {
 	slog.Info("Starting worker", "name", t.Name())
 	defer slog.Info("Worker stopped", "name", t.Name())
 
-	pool := make(chan struct{}, t.poolSize)
+	updates := t.client.GetUpdates()
 
 	for {
 		select {
 		case <-ctx.Done():
-			close(pool)
+			t.wg.Wait()
 			return nil
-		case update := <-t.client.GetUpdates():
-			pool <- struct{}{}
-			go func(update *tgbotapi.Update) {
-				defer func() { <-pool }()
-				t.processUpdate(update)
-			}(&update)
-		default:
-			time.Sleep(t.pollingInterval)
+		case update := <-updates:
+			t.wg.Add(1)
+			go func(update tgbotapi.Update) {
+				defer t.wg.Done()
+				t.processUpdate(ctx, &update)
+			}(update)
+		case response := <-t.responseCh:
+			t.wg.Add(1)
+			go func(response domain.Response) {
+				defer t.wg.Done()
+				t.client.SendResponse(ctx, &response)
+			}(response)
 		}
 	}
 }
 
-func (t *telegramUpdateListener) processUpdate(update *tgbotapi.Update) {
-	ctx := logger.ContextWithRequestID(context.Background(), update.UpdateID)
+func (t *telegramUpdateListener) processUpdate(ctx context.Context, update *tgbotapi.Update) {
+	ctx = logger.ContextWithRequestID(ctx, update.UpdateID)
 
 	var chatID, userID int64
 	switch {
@@ -83,8 +86,9 @@ func (t *telegramUpdateListener) processUpdate(update *tgbotapi.Update) {
 		chatID, userID = update.Message.Chat.ID, update.Message.From.ID
 	case update.CallbackQuery != nil:
 		chatID, userID = update.CallbackQuery.Message.Chat.ID, update.CallbackQuery.From.ID
+		defer t.client.AcknowledgeCallback(ctx, update.CallbackQuery.ID)
 	default:
-		slog.WarnContext(ctx, "Unknown update type", "update", update)
+		slog.WarnContext(ctx, "Received unknown update type", "update", update)
 		return
 	}
 
@@ -92,15 +96,12 @@ func (t *telegramUpdateListener) processUpdate(update *tgbotapi.Update) {
 
 	if !t.authenticator.IsAuthorized(userID) {
 		slog.WarnContext(ctx, "Unauthorized access attempt")
-
-		t.respondUnauthorized(ctx, chatID, userID)
+		t.client.SendResponse(ctx, &domain.Response{
+			ChatID: chatID,
+			Text:   fmt.Sprintf("User PromptID %d is not authorized", userID),
+		})
 		return
 	}
 
-	t.registry.HandleUpdate(ctx, update)
-}
-
-func (t *telegramUpdateListener) respondUnauthorized(ctx context.Context, chatID, userID int64) {
-	text := fmt.Sprintf("User ID %d is not authorized", userID)
-	t.client.SendResponse(ctx, chatID, &domain.Response{Text: text})
+	t.handler.HandleUpdate(ctx, update)
 }

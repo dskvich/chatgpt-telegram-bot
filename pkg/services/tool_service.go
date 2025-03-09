@@ -69,7 +69,7 @@ func (ts *toolService) InvokeFunction(ctx context.Context, chatID int64, name, a
 		return "", fmt.Errorf("failed to parse arguments: %w", err)
 	}
 
-	slog.DebugContext(ctx, "Arguments parsed successfully", "parsed_args", parsedArgs)
+	slog.DebugContext(ctx, "Arguments parsed", "args", parsedArgs)
 
 	function := tool.Function
 	if err := validateArguments(function.Parameters, parsedArgs); err != nil {
@@ -105,7 +105,7 @@ func (ts *toolService) InvokeFunction(ctx context.Context, chatID int64, name, a
 		err, _ = results[1].Interface().(error)
 	}
 
-	slog.DebugContext(ctx, "Function executed successfully", "result", result)
+	slog.DebugContext(ctx, "Function executed", "result", result, "err", err)
 	return result, err
 }
 

@@ -11,20 +11,18 @@ import (
 
 	"github.com/caarlos0/env/v9"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/converter"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/services"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram/handler"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/workers"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/tools"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/auth"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/database"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/openai"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/repository"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/services"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/tools"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/workers"
 )
-
-const DefaultChatTTL = 15 * time.Minute
 
 type Config struct {
 	OpenAIToken                           string        `env:"OPEN_AI_TOKEN,required"`
@@ -78,12 +76,7 @@ func setupWorkers() (workers.Group, error) {
 	var worker workers.Worker
 	var workerGroup workers.Group
 
-	imageGenerationStyles := map[string]string{
-		"vivid":   "Яркий",
-		"natural": "Естественный",
-	}
-
-	telegramClient, err := telegram.NewClient(cfg.TelegramBotToken, imageGenerationStyles)
+	telegramClient, err := telegram.NewClient(cfg.TelegramBotToken)
 	if err != nil {
 		return nil, fmt.Errorf("creating telegram client: %w", err)
 	}
@@ -99,13 +92,12 @@ func setupWorkers() (workers.Group, error) {
 		return nil, fmt.Errorf("creating open ai client: %w", err)
 	}
 
-	chatRepository := repository.NewChatRepository(DefaultChatTTL)
-	promptRepository := repository.NewImagePromptRepository(db)
+	chatRepository := repository.NewChatRepository()
+	promptRepository := repository.NewPromptsRepository(db)
 	settingsRepository := repository.NewSettingsRepository(db)
-	chatStyleRepository := repository.NewChatStyleRepository(db)
 
 	// Price per 1M tokens (Input/Output)
-	supportedModels := []string{
+	supportedTextModels := []string{
 		"gpt-4o-mini",   // $0.15/$0.60
 		"gpt-3.5-turbo", // $0.50/$1.50
 		"o3-mini",       // $1.10/$4.40
@@ -114,12 +106,7 @@ func setupWorkers() (workers.Group, error) {
 	}
 
 	toolFunctions := []services.ToolFunction{
-		tools.NewGetChatSettings(settingsRepository),
-		tools.NewSetModel(settingsRepository, supportedModels),
-		tools.NewUpdateActiveChatStyle(chatStyleRepository),
-		tools.NewCreateChatStyleFromActive(chatStyleRepository),
-		tools.NewActivateChatStyle(chatStyleRepository),
-		tools.NewDeleteChatStyle(chatStyleRepository),
+		tools.NewSetModel(settingsRepository, supportedTextModels),
 	}
 
 	toolService, err := services.NewToolService(toolFunctions)
@@ -127,61 +114,54 @@ func setupWorkers() (workers.Group, error) {
 		return nil, fmt.Errorf("creating tool service: %w", err)
 	}
 
-	const (
-		ttlShort  = 15 * time.Minute
-		ttlMedium = time.Hour
-		ttlLong   = 8 * time.Hour
-		ttlNone   = 0
+	responseCh := make(chan domain.Response)
+
+	imageService := services.NewImageService(
+		openAIClient,
+		promptRepository,
+		responseCh,
 	)
 
-	chatTTLOptions := map[string]time.Duration{
-		"ttl_15m":      ttlShort,
-		"ttl_1h":       ttlMedium,
-		"ttl_8h":       ttlLong,
-		"ttl_disabled": ttlNone,
-	}
-
-	imageKeywords := []string{"рисуй", "draw"}
-	intentDetector := services.NewIntentDetector(imageKeywords)
-
-	imageService := services.NewImageService(openAIClient, promptRepository, settingsRepository)
 	chatService := services.NewChatService(
-		openAIClient,
 		chatRepository,
 		settingsRepository,
-		chatStyleRepository,
 		toolService,
-		intentDetector,
-		chatTTLOptions,
-		&converter.VoiceToMP3{},
+		supportedTextModels,
+		responseCh,
+	)
+
+	textService := services.NewTextService(
+		openAIClient,
+		toolService,
 		imageService,
-	)
-
-	registry := telegram.NewRegistry(
-		// non ai commands
-		handler.NewShowWelcomeMessage(telegramClient),
-		handler.NewClearChatMessage(chatService, telegramClient),
-		handler.NewSetTTLMessage(telegramClient),
-		handler.NewSetTTLCallback(chatService, telegramClient, chatTTLOptions),
-		handler.NewShowChatSettingsMessage(chatService, telegramClient),
-		handler.NewSetImageStyleMessage(telegramClient),
-		handler.NewSetImageStyleCallback(imageService, telegramClient, imageGenerationStyles),
-		handler.NewShowChatStylesMessage(chatService, telegramClient),
-
-		// ai commands
-		handler.NewGenerateImageCallback(imageService, telegramClient),
-		handler.NewGenerateResponseFromVoiceMessage(chatService, telegramClient),
-		handler.NewGenerateResponseFromImageMessage(chatService, telegramClient),
-		handler.NewGenerateResponseMessage(chatService, telegramClient),
-	)
-
-	if worker, err = workers.NewTelegramUpdateListener(
+		chatService,
 		telegramClient,
-		authenticator,
-		registry,
-		cfg.TelegramUpdateListenerPoolSize,
-		cfg.TelegramUpdateListenerPollingInterval,
-	); err == nil {
+		responseCh,
+	)
+
+	voiceService := services.NewVoiceService(
+		&converter.VoiceToMP3{},
+		openAIClient,
+		telegramClient,
+		imageService,
+		textService,
+		responseCh,
+	)
+
+	handler := telegram.NewHandler(
+		imageService,
+		textService,
+		voiceService,
+		chatService,
+	)
+
+	if worker, err = workers.
+		NewTelegramUpdateListener(
+			telegramClient,
+			authenticator,
+			handler,
+			responseCh,
+		); err == nil {
 		workerGroup = append(workerGroup, worker)
 	} else {
 		return nil, err

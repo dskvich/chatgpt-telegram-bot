@@ -9,15 +9,15 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
-type ChatSettingsSaveRepository interface {
-	Save(ctx context.Context, chatID int64, key, value string) error
+type SettingsRepository interface {
+	Save(ctx context.Context, settings domain.Settings) error
 }
 type setModel struct {
-	repo            ChatSettingsSaveRepository
+	repo            SettingsRepository
 	supportedModels []string
 }
 
-func NewSetModel(repo ChatSettingsSaveRepository, supportedModels []string) *setModel {
+func NewSetModel(repo SettingsRepository, supportedModels []string) *setModel {
 	return &setModel{
 		repo:            repo,
 		supportedModels: supportedModels,
@@ -51,10 +51,15 @@ func (s *setModel) Function() any {
 
 		properModel, err := s.findModel(model)
 		if err != nil {
-			return "", fmt.Errorf("looking fot model '%s': %w", model, err)
+			return "", fmt.Errorf("looking for model '%s': %w", model, err)
 		}
 
-		if err := s.repo.Save(context.Background(), chatID, domain.ModelKey, properModel); err != nil {
+		settings := domain.Settings{
+			ChatID:    chatID,
+			TextModel: properModel,
+		}
+
+		if err := s.repo.Save(ctx, settings); err != nil {
 			return "", fmt.Errorf("saving model: %w", err)
 		}
 

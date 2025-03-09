@@ -1,8 +1,11 @@
 package domain
 
-const (
-	ModelKey = "model"
+import "time"
 
-	DefaultModel           = "gpt-4o-mini"
-	SpeechRecognitionModel = "whisper-1"
-)
+type Settings struct {
+	ChatID       int64
+	TextModel    string
+	SystemPrompt string
+	ImageModel   string
+	TTL          time.Duration
+}

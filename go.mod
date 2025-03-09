@@ -1,6 +1,6 @@
 module github.com/dskvich/chatgpt-telegram-bot
 
-go 1.22.5
+go 1.24.1
 
 require (
 	github.com/caarlos0/env/v9 v9.0.0
@@ -10,9 +10,12 @@ require (
 	github.com/rubenv/sql-migrate v1.5.2
 	github.com/russross/blackfriday v1.6.0
 	github.com/uptrace/bun/driver/pgdriver v1.1.16
+	go.uber.org/ratelimit v0.3.1
+	golang.org/x/time v0.11.0
 )
 
 require (
+	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect

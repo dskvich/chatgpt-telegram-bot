@@ -2,273 +2,243 @@ package services
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
-const (
-	voiceTempDirPerm = 0o755  // Permissions for the temporary directory
-	voiceFilePerm    = 0o600  // Permissions for temporary files
-	voiceTempDir     = "temp" // Directory for temporary files
-)
-
-type OpenAIClient interface {
-	CreateChatCompletion(ctx context.Context, chat *domain.Chat) (domain.ChatMessage, error)
-	TranscribeAudio(ctx context.Context, audioFilePath string) (string, error)
-}
-
 type ChatRepository interface {
 	Save(chat domain.Chat)
-	GetByID(chatID int64) (domain.Chat, bool)
-	ClearChat(chatID int64)
-	SetTTL(chatID int64, ttl time.Duration)
+	GetByID(chatID int64) (domain.Chat, time.Time, bool)
+	Clear(chatID int64)
 }
 
 type SettingsRepository interface {
-	GetAll(ctx context.Context, chatID int64) (map[string]string, error)
-	Save(ctx context.Context, chatID int64, key, value string) error
+	Save(ctx context.Context, settings domain.Settings) error
+	GetByChatID(ctx context.Context, chatID int64) (*domain.Settings, error)
 }
 
-type ChatStyleRepository interface {
-	GetActiveStyle(ctx context.Context, chatID int64) (*domain.ChatStyle, error)
-	GetAllStyles(ctx context.Context, chatID int64) ([]domain.ChatStyle, error)
-}
-
-type ToolService interface {
-	Tools() []domain.Tool
-	InvokeFunction(ctx context.Context, chatID int64, name, args string) (string, error)
-}
-
-type IntentDetector interface {
-	DetectIntent(prompt string) domain.Intent
-}
-
-type AudioConverter interface {
-	ConvertToMP3(inputPath string) (string, error)
-}
-
-type ImageService interface {
-	GenerateImage(ctx context.Context, chatID int64, prompt, user string) (*domain.Image, error)
-}
-
-type ChatService struct {
-	openAIClient   OpenAIClient
-	chatRepo       ChatRepository
-	settingsRepo   SettingsRepository
-	chatStyleRepo  ChatStyleRepository
-	toolService    ToolService
-	intentDetector IntentDetector
-	ttlOptions     map[string]time.Duration
-	audioConverter AudioConverter
-	imageService   ImageService
+type chatService struct {
+	chatRepo            ChatRepository
+	settingsRepo        SettingsRepository
+	toolService         *toolService
+	supportedTextModels []string
+	responseCh          chan<- domain.Response
 }
 
 func NewChatService(
-	openAIClient OpenAIClient,
 	chatRepo ChatRepository,
 	settingsRepo SettingsRepository,
-	chatStyleRepo ChatStyleRepository,
-	toolService ToolService,
-	intentDetector IntentDetector,
-	ttlOptions map[string]time.Duration,
-	audioConverter AudioConverter,
-	imageService ImageService,
-) *ChatService {
-	return &ChatService{
-		openAIClient:   openAIClient,
-		chatRepo:       chatRepo,
-		settingsRepo:   settingsRepo,
-		chatStyleRepo:  chatStyleRepo,
-		toolService:    toolService,
-		intentDetector: intentDetector,
-		ttlOptions:     ttlOptions,
-		audioConverter: audioConverter,
-		imageService:   imageService,
+	toolService *toolService,
+	supportedTextModels []string,
+	responseCh chan<- domain.Response,
+) *chatService {
+	return &chatService{
+		chatRepo:            chatRepo,
+		settingsRepo:        settingsRepo,
+		toolService:         toolService,
+		supportedTextModels: supportedTextModels,
+		responseCh:          responseCh,
 	}
 }
 
-func (c *ChatService) SetChatTTL(ctx context.Context, chatID int64, ttl time.Duration) error {
-	c.chatRepo.SetTTL(chatID, ttl)
+func (c *chatService) ClearChatHistory(ctx context.Context, chatID int64) {
+	c.chatRepo.Clear(chatID)
+	c.responseCh <- domain.Response{
+		ChatID: chatID,
+		Text:   "🧹 История очищена! Начните новый чат. 🚀",
+	}
+}
+
+func (c *chatService) SendTextModels(ctx context.Context, chatID int64) {
+	buttons := make(map[string]string, len(c.supportedTextModels))
+	for _, model := range c.supportedTextModels {
+		buttons[model] = domain.SetTextModelCallbackPrefix + model
+	}
+
+	c.responseCh <- domain.Response{
+		ChatID: chatID,
+		Keyboard: &domain.Keyboard{
+			Title:   "⚙️ Выберите текстовую модель GPT:",
+			Buttons: buttons,
+		},
+	}
+}
+
+func (c *chatService) SetTextModel(ctx context.Context, chatID int64, modelRaw string) {
+	model, err := c.parseTextModel(modelRaw)
+	if err != nil {
+		c.responseCh <- domain.Response{ChatID: chatID, Err: err}
+		return
+	}
+
+	settings, _ := c.settingsRepo.GetByChatID(ctx, chatID)
+	if settings == nil {
+		settings = &domain.Settings{ChatID: chatID}
+	}
+	settings.TextModel = model
+	c.settingsRepo.Save(ctx, *settings)
+
+	c.responseCh <- domain.Response{
+		ChatID: chatID,
+		Text:   "✅ Модель установлена: " + model,
+	}
+
+	c.ClearChatHistory(ctx, chatID)
+}
+
+func (c *chatService) parseTextModel(modelRaw string) (string, error) {
+	if !strings.HasPrefix(modelRaw, domain.SetTextModelCallbackPrefix) {
+		return "", fmt.Errorf("invalid format, expected prefix '%s'", domain.SetTextModelCallbackPrefix)
+	}
+
+	model := strings.TrimPrefix(modelRaw, domain.SetTextModelCallbackPrefix)
+
+	for _, supportedModel := range c.supportedTextModels {
+		if model == supportedModel {
+			return model, nil
+		}
+	}
+
+	return "", errors.New("unsupported model")
+}
+
+func (c *chatService) SendImageModels(ctx context.Context, chatID int64) {
+
+}
+
+func (c *chatService) SetImageModel(ctx context.Context, chatID int64, model string) {
+	settings, _ := c.settingsRepo.GetByChatID(ctx, chatID)
+	if settings == nil {
+		settings = &domain.Settings{ChatID: chatID}
+	}
+	settings.ImageModel = model
+	c.settingsRepo.Save(ctx, *settings)
+
+	c.responseCh <- domain.Response{
+		ChatID: chatID,
+		Text:   "✅ Модель изображений установлена: " + model,
+	}
+}
+
+func (c *chatService) SendTTLOptions(ctx context.Context, chatID int64) {
+	const (
+		ttlShort  = 15 * time.Minute
+		ttlMedium = time.Hour
+		ttlLong   = 8 * time.Hour
+		ttlNone   = 0
+	)
+
+	chatTTLOptions := map[string]time.Duration{
+		"ttl_15m":      ttlShort,
+		"ttl_1h":       ttlMedium,
+		"ttl_8h":       ttlLong,
+		"ttl_disabled": ttlNone,
+	}
+
+	slog.DebugContext(ctx, "send ttl options", "chatTTLOptions", chatTTLOptions)
+
+	// TODO: send keyboard
+}
+
+func (c *chatService) SetChatTTL(ctx context.Context, chatID int64, ttl string) {
+	ttlDuration, err := time.ParseDuration(ttl)
+	if err != nil {
+		c.responseCh <- domain.Response{ChatID: chatID, Err: fmt.Errorf("error parsing ttl duration: %w", err)}
+		return
+	}
+
+	settings, _ := c.settingsRepo.GetByChatID(ctx, chatID)
+	if settings == nil {
+		settings = &domain.Settings{ChatID: chatID}
+	}
+
+	settings.TTL = ttlDuration
+	c.settingsRepo.Save(ctx, *settings)
+
+	c.responseCh <- domain.Response{
+		ChatID: chatID,
+		Text:   "✅ Время жизни чата (TTL) установлено: " + ttl,
+	}
+}
+
+func (c *chatService) SendSystemPrompt(ctx context.Context, chatID int64) {
+	// TODO: send prompt from settings
+}
+
+func (c *chatService) SetSystemPrompt(ctx context.Context, chatID int64, prompt string) {
+	settings, _ := c.settingsRepo.GetByChatID(ctx, chatID)
+	if settings == nil {
+		settings = &domain.Settings{ChatID: chatID}
+	}
+	settings.SystemPrompt = prompt
+	c.settingsRepo.Save(ctx, *settings)
+
+	c.responseCh <- domain.Response{
+		ChatID: chatID,
+		Text:   "✅ Системный промпт установлен: " + prompt,
+	}
+}
+
+func (c *chatService) SendGreeting(ctx context.Context, chatID int64) {
+	greeting := `👋 Я твой ChatGPT Telegram-бот. Вот что умею:
+
+❓ Отвечаю на вопросы. Напиши "/new" для очистки истории.
+🎨 Рисую картинки. Начни запрос с "нарисуй".
+🎙 Понимаю голосовые сообщения.
+📷 Распознаю картинки.`
+
+	c.responseCh <- domain.Response{
+		ChatID: chatID,
+		Text:   greeting,
+	}
+}
+
+func (c *chatService) Save(ctx context.Context, chat domain.Chat) error {
+	c.chatRepo.Save(chat)
+
 	return nil
 }
 
-func (c *ChatService) GetChatStyles(ctx context.Context, chatID int64) ([]domain.ChatStyle, error) {
-	return c.chatStyleRepo.GetAllStyles(ctx, chatID)
-}
-
-func (c *ChatService) GetChatSettings(ctx context.Context, chatID int64) (map[string]string, error) {
-	return c.settingsRepo.GetAll(ctx, chatID)
-}
-
-func (c *ChatService) ClearChatHistory(ctx context.Context, chatID int64) error {
-	c.chatRepo.ClearChat(chatID)
-	return nil
-}
-
-func (c *ChatService) GenerateResponseFromVoice(ctx context.Context, chatID int64, voiceData []byte) (*domain.Response, error) {
-	voiceFilePath := filepath.Join(voiceTempDir, fmt.Sprintf("voice_%d.ogg", time.Now().UnixNano()))
-
-	if err := os.MkdirAll(voiceTempDir, voiceTempDirPerm); err != nil {
-		return nil, fmt.Errorf("creating temp directory: %w", err)
-	}
-
-	if err := os.WriteFile(voiceFilePath, voiceData, voiceFilePerm); err != nil {
-		return nil, fmt.Errorf("saving voice file: %w", err)
-	}
-
-	mp3Path, err := c.audioConverter.ConvertToMP3(voiceFilePath)
+func (c *chatService) GetChatByID(ctx context.Context, chatID int64) (*domain.Chat, error) {
+	settings, err := c.settingsRepo.GetByChatID(ctx, chatID)
 	if err != nil {
-		return nil, fmt.Errorf("converting voice file to MP3: %w", err)
-	}
-
-	transcription, err := c.openAIClient.TranscribeAudio(ctx, mp3Path)
-	if err != nil {
-		return nil, fmt.Errorf("transcribing audio file: %w", err)
-	}
-
-	return c.GenerateResponse(ctx, chatID, nil, transcription)
-}
-
-func (c *ChatService) GenerateResponse(ctx context.Context, chatID int64, imageData []byte, prompt string) (*domain.Response, error) {
-	intent := c.intentDetector.DetectIntent(prompt)
-
-	switch intent {
-	case domain.IntentGenerateImage:
-		image, err := c.imageService.GenerateImage(ctx, chatID, prompt, "")
-		if err != nil {
-			return nil, fmt.Errorf("generating image: %w", err)
+		if errors.Is(err, domain.ErrNotFound) {
+			slog.WarnContext(ctx, "Settings not found, using defaults", "chatID", chatID)
+			settings = &domain.Settings{}
+		} else {
+			return nil, fmt.Errorf("fetching settings: %w", err)
 		}
-
-		return &domain.Response{Image: image}, nil
-	case domain.IntentGenerateText:
-		response, err := c.generateTextResponse(ctx, chatID, imageData, prompt)
-		if err != nil {
-			return nil, fmt.Errorf("generating response: %w", err)
-		}
-		return response, nil
-	default:
-		return nil, errors.New("unable to determine intent of the message")
-	}
-}
-
-func (c *ChatService) generateTextResponse(ctx context.Context, chatID int64, imageData []byte, prompt string) (*domain.Response, error) {
-	slog.InfoContext(ctx, "Generating text response", "prompt", prompt, "imageDataLen", len(imageData))
-
-	chat, err := c.getOrCreateChat(ctx, chatID)
-	if err != nil {
-		return nil, fmt.Errorf("getting or creating chat: %w", err)
 	}
 
-	// Add user message
-	chat.Messages = append(chat.Messages, domain.ChatMessage{
-		Role:    "user",
-		Content: c.prepareContent(prompt, imageData),
-	})
-
-	slog.InfoContext(ctx, "Calling OpenAI for chat completion", "model", chat.ModelName, "messagesCount", len(chat.Messages))
-
-	chatResponse, err := c.openAIClient.CreateChatCompletion(ctx, chat)
-	if err != nil {
-		return nil, fmt.Errorf("creating chat completion: %w", err)
+	if settings.TextModel == "" {
+		settings.TextModel = domain.Gpt4oMiniModel
+	}
+	if settings.TTL == 0 {
+		settings.TTL = time.Minute
 	}
 
-	slog.DebugContext(ctx, "Chat completion received", "content", chatResponse.Content, "toolCallsCount", len(chatResponse.ToolCalls))
-
-	// Add assistant message
-	chat.Messages = append(chat.Messages, chatResponse)
-
-	if chatResponse.Content != nil {
-		c.chatRepo.Save(*chat)
-		return &domain.Response{Text: fmt.Sprint(chatResponse.Content)}, nil
-	}
-
-	// Process tool invocations, if any
-	for _, toolCall := range chatResponse.ToolCalls {
-		toolResponse, err := c.toolService.InvokeFunction(ctx, chat.ID, toolCall.Function.Name, toolCall.Function.Arguments)
-		if err != nil {
-			return nil, fmt.Errorf("invoking tool: %w", err)
-		}
-
-		// Add tool message
-		chat.Messages = append(chat.Messages, domain.ChatMessage{
-			ToolCallID: toolCall.ID,
-			Role:       "tool",
-			Name:       toolCall.Function.Name,
-			Content:    toolResponse,
-		})
-
-		slog.InfoContext(ctx, "Calling OpenAI for post-tool chat completion", "messagesCount", len(chat.Messages))
-
-		afterToolResponse, err := c.openAIClient.CreateChatCompletion(ctx, chat)
-		if err != nil {
-			return nil, fmt.Errorf("creating chat completion after invoking tool: %w", err)
-		}
-
-		slog.DebugContext(ctx, "Post-tool chat completion received", "responseContent", afterToolResponse.Content)
-
-		// Add assistant message
-		chat.Messages = append(chat.Messages, afterToolResponse)
-
-		c.chatRepo.Save(*chat)
-		return &domain.Response{Text: fmt.Sprint(afterToolResponse.Content)}, nil
-	}
-
-	return nil, fmt.Errorf("unexpected chat completion response: %+v", chatResponse)
-}
-
-func (c *ChatService) prepareContent(text string, image []byte) any {
-	if image != nil {
-		imageContent := domain.Content{
-			Type: "image_url",
-			ImageURL: &domain.ImageURL{
-				URL: "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(image),
-			},
-		}
-		if text != "" {
-			return []domain.Content{{Type: "text", Text: text}, imageContent}
-		}
-		return []domain.Content{imageContent}
-	}
-	return text
-}
-
-func (c *ChatService) getOrCreateChat(ctx context.Context, chatID int64) (*domain.Chat, error) {
-	if chat, ok := c.chatRepo.GetByID(chatID); ok {
+	chat, lastUpdate, ok := c.chatRepo.GetByID(chatID)
+	if ok && !c.isExpired(lastUpdate, settings.TTL) {
 		return &chat, nil
 	}
 
-	slog.DebugContext(ctx, "Chat not found, creating a new one")
-
-	// create a new chat
-	settings, err := c.settingsRepo.GetAll(ctx, chatID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch settings: %w", err)
-	}
-
-	model := settings[domain.ModelKey]
-	if model == "" {
-		model = domain.DefaultModel
-	}
-
-	style, err := c.chatStyleRepo.GetActiveStyle(ctx, chatID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch active style: %w", err)
-	}
+	slog.DebugContext(ctx, "Creating a new chat with parameters",
+		"textModel", settings.TextModel,
+		"ttl", settings.TTL,
+		"systemPrompt", settings.SystemPrompt,
+	)
 
 	var messages []domain.ChatMessage
-	if style != nil && style.Description != "" {
+	if settings.SystemPrompt != "" {
 		messages = append(messages, domain.ChatMessage{
 			Role:    "developer",
-			Content: style.Description,
+			Content: settings.SystemPrompt,
 		})
-		slog.DebugContext(ctx, "Added developer instructions", "description", style.Description)
 	}
 
 	tools := c.toolService.Tools()
@@ -276,12 +246,29 @@ func (c *ChatService) getOrCreateChat(ctx context.Context, chatID int64) (*domai
 	for i, tool := range tools {
 		toolNames[i] = tool.Function.Name
 	}
-	slog.DebugContext(ctx, "Tools available", "toolNames", toolNames)
+	slog.DebugContext(ctx, "Chat tools available", "toolNames", toolNames)
+
+	c.responseCh <- domain.Response{
+		ChatID: chatID,
+		Text: fmt.Sprintf(`<i>🛠️ Создан новый чат!
+		Текстовая модель GPT: %s
+		Период хранения данных: %s
+		Системная инструкция: %s
+		Доступные функции GPT: %s
+		</i>`, settings.TextModel, settings.TTL, settings.SystemPrompt, toolNames),
+	}
 
 	return &domain.Chat{
 		ID:        chatID,
-		ModelName: model,
+		ModelName: settings.TextModel,
 		Messages:  messages,
 		Tools:     tools,
 	}, nil
+}
+
+func (c *chatService) isExpired(lastUpdate time.Time, ttl time.Duration) bool {
+	if ttl <= 0 {
+		return false
+	}
+	return time.Since(lastUpdate) > ttl
 }

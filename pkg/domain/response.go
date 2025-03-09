@@ -1,18 +1,25 @@
 package domain
 
 type Response struct {
-	Text  string
-	Image *Image
-	File  *File
-	Err   error
+	ChatID   int64
+	Text     string
+	Image    *Image
+	File     *File
+	Keyboard *Keyboard
+	Err      error
 }
 
 type Image struct {
-	ID   int64
-	Data []byte
+	PromptID int64
+	Data     []byte
 }
 
 type File struct {
 	Name string
 	Data []byte
+}
+
+type Keyboard struct {
+	Title   string
+	Buttons map[string]string
 }

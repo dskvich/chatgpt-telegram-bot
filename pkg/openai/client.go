@@ -157,14 +157,13 @@ func createMultipartForm(filePath, model string) (*bytes.Buffer, string, error) 
 	return &body, writer.FormDataContentType(), nil
 }
 
-func (c *client) GenerateImage(ctx context.Context, prompt, style string) ([]byte, error) {
+func (c *client) GenerateImage(ctx context.Context, prompt string) ([]byte, error) {
 	reqBody, err := json.Marshal(map[string]interface{}{
 		"model":           domain.DallE2,
 		"prompt":          prompt,
 		"n":               1,
 		"size":            domain.Size256x256,
 		"response_format": defaultResponseFmt,
-		"style":           style,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)

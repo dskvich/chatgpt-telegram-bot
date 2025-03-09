@@ -13,43 +13,19 @@ type chatEntry struct {
 }
 
 type chatRepository struct {
-	mu         sync.RWMutex
-	chats      map[int64]chatEntry
-	chatTTL    map[int64]time.Duration
-	defaultTTL time.Duration
+	mu    sync.RWMutex
+	chats map[int64]chatEntry
 }
 
-func NewChatRepository(defaultTTL time.Duration) *chatRepository {
+func NewChatRepository() *chatRepository {
 	return &chatRepository{
-		chats:      make(map[int64]chatEntry),
-		chatTTL:    make(map[int64]time.Duration),
-		defaultTTL: defaultTTL,
+		chats: make(map[int64]chatEntry),
 	}
-}
-
-func (c *chatRepository) SetTTL(chatID int64, ttl time.Duration) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.chatTTL[chatID] = ttl
 }
 
 func (c *chatRepository) Save(chat domain.Chat) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	// Get chat TTL
-	ttl := c.defaultTTL
-	if chatTTL, ok := c.chatTTL[chat.ID]; ok {
-		ttl = chatTTL
-	}
-
-	// Clean up expired chat before saving a new one
-	if entry, ok := c.chats[chat.ID]; ok {
-		if ttl > 0 && time.Since(entry.lastUpdate) > ttl {
-			delete(c.chats, chat.ID)
-		}
-	}
 
 	c.chats[chat.ID] = chatEntry{
 		chat:       chat,
@@ -57,29 +33,19 @@ func (c *chatRepository) Save(chat domain.Chat) {
 	}
 }
 
-func (c *chatRepository) GetByID(chatID int64) (domain.Chat, bool) {
+func (c *chatRepository) GetByID(chatID int64) (domain.Chat, time.Time, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	// Get chat TTL
-	ttl := c.defaultTTL
-	if chatTTL, ok := c.chatTTL[chatID]; ok {
-		ttl = chatTTL
-	}
-
 	entry, ok := c.chats[chatID]
 	if !ok {
-		return domain.Chat{}, false
+		return domain.Chat{}, time.Time{}, false
 	}
 
-	if ttl > 0 && time.Since(entry.lastUpdate) > ttl {
-		return domain.Chat{}, false
-	}
-
-	return entry.chat, true
+	return entry.chat, entry.lastUpdate, true
 }
 
-func (c *chatRepository) ClearChat(chatID int64) {
+func (c *chatRepository) Clear(chatID int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
