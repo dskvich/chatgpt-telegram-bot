@@ -11,7 +11,6 @@ require (
 	github.com/russross/blackfriday v1.6.0
 	github.com/uptrace/bun/driver/pgdriver v1.1.16
 	go.uber.org/ratelimit v0.3.1
-	golang.org/x/time v0.11.0
 )
 
 require (
