@@ -16,7 +16,7 @@ import (
 	"go.uber.org/ratelimit"
 )
 
-const maxTelegramMessageLength = 10
+const maxTelegramMessageLength = 4096
 
 type client struct {
 	token       string
