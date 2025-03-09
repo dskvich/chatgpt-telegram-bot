@@ -111,6 +111,7 @@ func isCommand(text string) bool {
 
 func (h *handler) handleCommand(ctx context.Context, chatID int64, text string) {
 	cmd := strings.ToLower(strings.TrimSpace(text))
+	cmd = strings.Split(cmd, "@")[0]
 
 	switch {
 	case cmd == "/start":
