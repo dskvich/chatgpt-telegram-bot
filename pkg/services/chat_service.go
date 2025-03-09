@@ -25,7 +25,6 @@ type SettingsRepository interface {
 type chatService struct {
 	chatRepo            ChatRepository
 	settingsRepo        SettingsRepository
-	toolService         *toolService
 	supportedTextModels []string
 	responseCh          chan<- domain.Response
 }
@@ -33,14 +32,12 @@ type chatService struct {
 func NewChatService(
 	chatRepo ChatRepository,
 	settingsRepo SettingsRepository,
-	toolService *toolService,
 	supportedTextModels []string,
 	responseCh chan<- domain.Response,
 ) *chatService {
 	return &chatService{
 		chatRepo:            chatRepo,
 		settingsRepo:        settingsRepo,
-		toolService:         toolService,
 		supportedTextModels: supportedTextModels,
 		responseCh:          responseCh,
 	}
@@ -241,28 +238,19 @@ func (c *chatService) GetChatByID(ctx context.Context, chatID int64) (*domain.Ch
 		})
 	}
 
-	tools := c.toolService.Tools()
-	toolNames := make([]string, len(tools))
-	for i, tool := range tools {
-		toolNames[i] = tool.Function.Name
-	}
-	slog.DebugContext(ctx, "Chat tools available", "toolNames", toolNames)
-
 	c.responseCh <- domain.Response{
 		ChatID: chatID,
 		Text: fmt.Sprintf(`<i>🛠️ Создан новый чат!
 		Текстовая модель GPT: %s
 		Период хранения данных: %s
 		Системная инструкция: %s
-		Доступные функции GPT: %s
-		</i>`, settings.TextModel, settings.TTL, settings.SystemPrompt, toolNames),
+		</i>`, settings.TextModel, settings.TTL, settings.SystemPrompt),
 	}
 
 	return &domain.Chat{
 		ID:        chatID,
 		ModelName: settings.TextModel,
 		Messages:  messages,
-		Tools:     tools,
 	}, nil
 }
 

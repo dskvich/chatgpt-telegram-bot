@@ -10,10 +10,8 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v9"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/converter"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/tools"
-
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/auth"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/converter"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/database"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
@@ -105,15 +103,6 @@ func setupWorkers() (workers.Group, error) {
 		//"gpt-4-turbo",   // $10.00/$30.00
 	}
 
-	toolFunctions := []services.ToolFunction{
-		tools.NewSetModel(settingsRepository, supportedTextModels),
-	}
-
-	toolService, err := services.NewToolService(toolFunctions)
-	if err != nil {
-		return nil, fmt.Errorf("creating tool service: %w", err)
-	}
-
 	responseCh := make(chan domain.Response)
 
 	imageService := services.NewImageService(
@@ -125,14 +114,12 @@ func setupWorkers() (workers.Group, error) {
 	chatService := services.NewChatService(
 		chatRepository,
 		settingsRepository,
-		toolService,
 		supportedTextModels,
 		responseCh,
 	)
 
 	textService := services.NewTextService(
 		openAIClient,
-		toolService,
 		imageService,
 		chatService,
 		telegramClient,

@@ -20,7 +20,6 @@ type ImageFileDownloader interface {
 
 type textService struct {
 	openAIClient OpenAIClient
-	toolService  *toolService
 	imageService *imageService
 	chatService  *chatService
 	downloader   ImageFileDownloader
@@ -29,7 +28,6 @@ type textService struct {
 
 func NewTextService(
 	openAIClient OpenAIClient,
-	toolService *toolService,
 	imageService *imageService,
 	chatService *chatService,
 	downloader ImageFileDownloader,
@@ -37,7 +35,6 @@ func NewTextService(
 ) *textService {
 	return &textService{
 		openAIClient: openAIClient,
-		toolService:  toolService,
 		imageService: imageService,
 		chatService:  chatService,
 		downloader:   downloader,
@@ -82,7 +79,7 @@ func (t *textService) generateTextResponse(ctx context.Context, chatID int64, im
 		return
 	}
 
-	slog.DebugContext(ctx, "Chat completion received", "content", chatResponse.Content, "toolCalls", chatResponse.ToolCalls)
+	slog.DebugContext(ctx, "Chat completion received", "content", chatResponse.Content)
 
 	// Add assistant message
 	chat.Messages = append(chat.Messages, chatResponse)
@@ -91,51 +88,6 @@ func (t *textService) generateTextResponse(ctx context.Context, chatID int64, im
 		t.chatService.Save(ctx, *chat)
 
 		t.responseCh <- domain.Response{ChatID: chatID, Text: fmt.Sprint(chatResponse.Content)}
-		return
-	}
-
-	// Process tool invocations, if any
-	for _, toolCall := range chatResponse.ToolCalls {
-		t.responseCh <- domain.Response{
-			ChatID: chatID,
-			Text:   fmt.Sprintf("<i>🛠️ Вызывается функция '%s' с аргументами '%s'</i>", toolCall.Function.Name, toolCall.Function.Arguments),
-		}
-
-		toolResponse, err := t.toolService.InvokeFunction(ctx, chat.ID, toolCall.Function.Name, toolCall.Function.Arguments)
-		if err != nil {
-			t.responseCh <- domain.Response{ChatID: chatID, Err: fmt.Errorf("invoking tool: %w", err)}
-			return
-		}
-
-		t.responseCh <- domain.Response{
-			ChatID: chatID,
-			Text:   fmt.Sprintf("<i>🛠️ Ответ от функции получен: '%s'</i>", toolResponse),
-		}
-
-		// Add tool message
-		chat.Messages = append(chat.Messages, domain.ChatMessage{
-			ToolCallID: toolCall.ID,
-			Role:       "tool",
-			Name:       toolCall.Function.Name,
-			Content:    toolResponse,
-		})
-
-		slog.InfoContext(ctx, "Calling OpenAI for post-tool chat completion", "messagesCount", len(chat.Messages))
-
-		afterToolResponse, err := t.openAIClient.CreateChatCompletion(ctx, chat)
-		if err != nil {
-			t.responseCh <- domain.Response{ChatID: chatID, Err: fmt.Errorf("creating chat completion after invoking tool: %w", err)}
-			return
-		}
-
-		slog.DebugContext(ctx, "Post-tool chat completion received", "responseContent", afterToolResponse.Content)
-
-		// Add assistant message
-		chat.Messages = append(chat.Messages, afterToolResponse)
-
-		t.chatService.Save(ctx, *chat)
-
-		t.responseCh <- domain.Response{ChatID: chatID, Text: fmt.Sprint(afterToolResponse.Content)}
 		return
 	}
 

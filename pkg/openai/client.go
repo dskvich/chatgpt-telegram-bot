@@ -44,7 +44,6 @@ func (c *client) CreateChatCompletion(ctx context.Context, chat *domain.Chat) (d
 		"model":      chat.ModelName,
 		"messages":   chat.Messages,
 		"max_tokens": defaultMaxTokens,
-		"tools":      chat.Tools,
 	})
 	if err != nil {
 		return domain.ChatMessage{}, fmt.Errorf("failed to marshal request: %w", err)
