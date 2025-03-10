@@ -69,11 +69,7 @@ func (t *telegramUpdateListener) Start(ctx context.Context) error {
 				t.processUpdate(ctx, &update)
 			}(update)
 		case response := <-t.responseCh:
-			t.wg.Add(1)
-			go func(response domain.Response) {
-				defer t.wg.Done()
-				t.client.SendResponse(ctx, &response)
-			}(response)
+			t.client.SendResponse(ctx, &response)
 		}
 	}
 }
