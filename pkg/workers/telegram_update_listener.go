@@ -24,6 +24,7 @@ type TelegramClient interface {
 	GetUpdates() tgbotapi.UpdatesChannel
 	SendResponse(ctx context.Context, response *domain.Response)
 	AcknowledgeCallback(ctx context.Context, callbackQueryID string)
+	StartTyping(ctx context.Context, chatID int64)
 }
 
 type telegramUpdateListener struct {
@@ -93,6 +94,8 @@ func (t *telegramUpdateListener) processUpdate(ctx context.Context, update *tgbo
 	}
 
 	slog.InfoContext(ctx, "Processing update", "chatID", chatID, "userID", userID)
+
+	t.client.StartTyping(ctx, chatID)
 
 	if !t.authenticator.IsAuthorized(userID) {
 		slog.WarnContext(ctx, "Unauthorized access attempt")

@@ -179,3 +179,8 @@ func (c *client) DownloadFile(ctx context.Context, fileID string) ([]byte, error
 
 	return bytes, nil
 }
+
+func (c *client) StartTyping(ctx context.Context, chatID int64) {
+	m := tgbotapi.NewChatAction(chatID, tgbotapi.ChatTyping)
+	c.send(ctx, m)
+}
