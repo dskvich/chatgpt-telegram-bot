@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
+
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 )
 
@@ -26,6 +28,7 @@ type chatService struct {
 	chatRepo            ChatRepository
 	settingsRepo        SettingsRepository
 	supportedTextModels []string
+	supportedTTLOptions []time.Duration
 	responseCh          chan<- domain.Response
 }
 
@@ -33,12 +36,14 @@ func NewChatService(
 	chatRepo ChatRepository,
 	settingsRepo SettingsRepository,
 	supportedTextModels []string,
+	supportedTTLOptions []time.Duration,
 	responseCh chan<- domain.Response,
 ) *chatService {
 	return &chatService{
 		chatRepo:            chatRepo,
 		settingsRepo:        settingsRepo,
 		supportedTextModels: supportedTextModels,
+		supportedTTLOptions: supportedTTLOptions,
 		responseCh:          responseCh,
 	}
 }
@@ -52,16 +57,13 @@ func (c *chatService) ClearChatHistory(ctx context.Context, chatID int64) {
 }
 
 func (c *chatService) SendTextModels(ctx context.Context, chatID int64) {
-	buttons := make(map[string]string, len(c.supportedTextModels))
-	for _, model := range c.supportedTextModels {
-		buttons[model] = domain.SetTextModelCallbackPrefix + model
-	}
-
 	c.responseCh <- domain.Response{
 		ChatID: chatID,
 		Keyboard: &domain.Keyboard{
-			Title:   "⚙️ Выберите текстовую модель GPT:",
-			Buttons: buttons,
+			Title:          "⚙️ Выберите текстовую модель GPT:",
+			ButtonLabels:   c.supportedTextModels,
+			CallbackPrefix: domain.SetTextModelCallbackPrefix,
+			ButtonsPerRow:  2,
 		},
 	}
 }
@@ -74,9 +76,7 @@ func (c *chatService) SetTextModel(ctx context.Context, chatID int64, modelRaw s
 	}
 
 	settings, _ := c.settingsRepo.GetByChatID(ctx, chatID)
-	if settings == nil {
-		settings = &domain.Settings{ChatID: chatID}
-	}
+	settings, _ = lo.Coalesce(settings, &domain.Settings{ChatID: chatID})
 	settings.TextModel = model
 	c.settingsRepo.Save(ctx, *settings)
 
@@ -95,10 +95,8 @@ func (c *chatService) parseTextModel(modelRaw string) (string, error) {
 
 	model := strings.TrimPrefix(modelRaw, domain.SetTextModelCallbackPrefix)
 
-	for _, supportedModel := range c.supportedTextModels {
-		if model == supportedModel {
-			return model, nil
-		}
+	if lo.Contains(c.supportedTextModels, model) {
+		return model, nil
 	}
 
 	return "", errors.New("unsupported model")
@@ -113,9 +111,7 @@ func (c *chatService) SendImageModels(ctx context.Context, chatID int64) {
 
 func (c *chatService) SetImageModel(ctx context.Context, chatID int64, model string) {
 	settings, _ := c.settingsRepo.GetByChatID(ctx, chatID)
-	if settings == nil {
-		settings = &domain.Settings{ChatID: chatID}
-	}
+	settings, _ = lo.Coalesce(settings, &domain.Settings{ChatID: chatID})
 	settings.ImageModel = model
 	c.settingsRepo.Save(ctx, *settings)
 
@@ -126,47 +122,63 @@ func (c *chatService) SetImageModel(ctx context.Context, chatID int64, model str
 }
 
 func (c *chatService) SendTTLOptions(ctx context.Context, chatID int64) {
-	const (
-		ttlShort  = 15 * time.Minute
-		ttlMedium = time.Hour
-		ttlLong   = 8 * time.Hour
-		ttlNone   = 0
-	)
-
-	chatTTLOptions := map[string]time.Duration{
-		"ttl_15m":      ttlShort,
-		"ttl_1h":       ttlMedium,
-		"ttl_8h":       ttlLong,
-		"ttl_disabled": ttlNone,
-	}
-
-	slog.DebugContext(ctx, "send ttl options", "chatTTLOptions", chatTTLOptions)
+	ttlOptions := lo.Map(c.supportedTTLOptions, func(d time.Duration, _ int) string {
+		return c.shortDuration(d)
+	})
 
 	c.responseCh <- domain.Response{
 		ChatID: chatID,
-		Text:   "🚧 В разработке 🚧",
+		Keyboard: &domain.Keyboard{
+			Title:          "⚙️ Выберите период хранения данных чата:",
+			ButtonLabels:   ttlOptions,
+			CallbackPrefix: domain.SetTTLCallbackPrefix,
+			ButtonsPerRow:  10,
+		},
 	}
 }
 
-func (c *chatService) SetChatTTL(ctx context.Context, chatID int64, ttl string) {
-	ttlDuration, err := time.ParseDuration(ttl)
+func (c *chatService) shortDuration(d time.Duration) string {
+	s := d.String()
+	s = lo.Ternary(strings.HasSuffix(s, "m0s"), s[:len(s)-2], s)
+	s = lo.Ternary(strings.HasSuffix(s, "h0m"), s[:len(s)-2], s)
+	return s
+}
+
+func (c *chatService) SetChatTTL(ctx context.Context, chatID int64, ttlRaw string) {
+	ttl, err := c.parseTTL(ttlRaw)
 	if err != nil {
 		c.responseCh <- domain.Response{ChatID: chatID, Err: fmt.Errorf("error parsing ttl duration: %w", err)}
 		return
 	}
 
 	settings, _ := c.settingsRepo.GetByChatID(ctx, chatID)
-	if settings == nil {
-		settings = &domain.Settings{ChatID: chatID}
-	}
-
-	settings.TTL = ttlDuration
+	settings, _ = lo.Coalesce(settings, &domain.Settings{ChatID: chatID})
+	settings.TTL = ttl
 	c.settingsRepo.Save(ctx, *settings)
 
 	c.responseCh <- domain.Response{
 		ChatID: chatID,
-		Text:   "✅ Время жизни чата (TTL) установлено: " + ttl,
+		Text:   "✅ Время жизни чата (TTL) установлено: " + c.shortDuration(ttl),
 	}
+}
+
+func (c *chatService) parseTTL(ttlRaw string) (time.Duration, error) {
+	if !strings.HasPrefix(ttlRaw, domain.SetTTLCallbackPrefix) {
+		return 0, fmt.Errorf("invalid format, expected prefix '%s'", domain.SetTTLCallbackPrefix)
+	}
+
+	ttlStr := strings.TrimPrefix(ttlRaw, domain.SetTTLCallbackPrefix)
+
+	ttl, err := time.ParseDuration(ttlStr)
+	if err != nil {
+		return 0, err
+	}
+
+	if lo.Contains(c.supportedTTLOptions, ttl) {
+		return ttl, nil
+	}
+
+	return 0, errors.New("unsupported ttl option")
 }
 
 func (c *chatService) SendSystemPrompt(ctx context.Context, chatID int64) {
@@ -178,9 +190,7 @@ func (c *chatService) SendSystemPrompt(ctx context.Context, chatID int64) {
 
 func (c *chatService) SetSystemPrompt(ctx context.Context, chatID int64, prompt string) {
 	settings, _ := c.settingsRepo.GetByChatID(ctx, chatID)
-	if settings == nil {
-		settings = &domain.Settings{ChatID: chatID}
-	}
+	settings, _ = lo.Coalesce(settings, &domain.Settings{ChatID: chatID})
 	settings.SystemPrompt = prompt
 	c.settingsRepo.Save(ctx, *settings)
 
@@ -220,21 +230,13 @@ func (c *chatService) Save(ctx context.Context, chat domain.Chat) error {
 
 func (c *chatService) GetChatByID(ctx context.Context, chatID int64) (*domain.Chat, error) {
 	settings, err := c.settingsRepo.GetByChatID(ctx, chatID)
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			slog.WarnContext(ctx, "Settings not found, using defaults", "chatID", chatID)
-			settings = &domain.Settings{}
-		} else {
-			return nil, fmt.Errorf("fetching settings: %w", err)
-		}
+	if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		return nil, fmt.Errorf("fetching settings: %w", err)
 	}
 
-	if settings.TextModel == "" {
-		settings.TextModel = domain.Gpt4oMiniModel
-	}
-	if settings.TTL == 0 {
-		settings.TTL = time.Minute * 15
-	}
+	settings, _ = lo.Coalesce(settings, &domain.Settings{})
+	settings.TextModel, _ = lo.Coalesce(settings.TextModel, domain.Gpt4oMiniModel)
+	settings.TTL, _ = lo.Coalesce(settings.TTL, 15*time.Minute)
 
 	chat, lastUpdate, ok := c.chatRepo.GetByID(chatID)
 	if ok && !c.isExpired(lastUpdate, settings.TTL) {
@@ -247,13 +249,9 @@ func (c *chatService) GetChatByID(ctx context.Context, chatID int64) (*domain.Ch
 		"systemPrompt", settings.SystemPrompt,
 	)
 
-	var messages []domain.ChatMessage
-	if settings.SystemPrompt != "" {
-		messages = append(messages, domain.ChatMessage{
-			Role:    "developer",
-			Content: settings.SystemPrompt,
-		})
-	}
+	messages := lo.If(settings.SystemPrompt != "",
+		[]domain.ChatMessage{{Role: "developer", Content: settings.SystemPrompt}}).
+		Else(nil)
 
 	c.responseCh <- domain.Response{
 		ChatID: chatID,

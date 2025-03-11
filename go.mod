@@ -9,6 +9,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/rubenv/sql-migrate v1.5.2
 	github.com/russross/blackfriday v1.6.0
+	github.com/samber/lo v1.49.1
 	github.com/uptrace/bun/driver/pgdriver v1.1.16
 	go.uber.org/ratelimit v0.3.1
 )
@@ -26,5 +27,6 @@ require (
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/sys v0.14.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	mellium.im/sasl v0.3.1 // indirect
 )

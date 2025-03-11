@@ -94,6 +94,14 @@ func setupWorkers() (workers.Group, error) {
 	promptRepository := repository.NewPromptsRepository(db)
 	settingsRepository := repository.NewSettingsRepository(db)
 
+	responseCh := make(chan domain.Response)
+
+	imageService := services.NewImageService(
+		openAIClient,
+		promptRepository,
+		responseCh,
+	)
+
 	// Price per 1M tokens (Input/Output)
 	// https://platform.openai.com/docs/pricing
 	supportedTextModels := []string{
@@ -104,18 +112,19 @@ func setupWorkers() (workers.Group, error) {
 		//"gpt-4-turbo",   // $10.00/$30.00
 	}
 
-	responseCh := make(chan domain.Response)
-
-	imageService := services.NewImageService(
-		openAIClient,
-		promptRepository,
-		responseCh,
-	)
+	supportedTTLOptions := []time.Duration{
+		15 * time.Minute,
+		time.Hour,
+		8 * time.Hour,
+		24 * time.Hour,
+		7 * 24 * time.Hour,
+	}
 
 	chatService := services.NewChatService(
 		chatRepository,
 		settingsRepository,
 		supportedTextModels,
+		supportedTTLOptions,
 		responseCh,
 	)
 

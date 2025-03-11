@@ -13,6 +13,7 @@ import (
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/render"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/samber/lo"
 	"go.uber.org/ratelimit"
 )
 
@@ -67,7 +68,14 @@ func (c *client) SendResponse(ctx context.Context, response *domain.Response) {
 	}
 
 	if response.Keyboard != nil {
-		if err := c.sendKeyboard(ctx, response.ChatID, response.Keyboard.Title, response.Keyboard.Buttons); err != nil {
+		if err := c.sendKeyboard(
+			ctx,
+			response.ChatID,
+			response.Keyboard.Title,
+			response.Keyboard.ButtonLabels,
+			response.Keyboard.CallbackPrefix,
+			response.Keyboard.ButtonsPerRow,
+		); err != nil {
 			c.handleError(ctx, response.ChatID, err)
 		}
 	}
@@ -130,15 +138,26 @@ func (c *client) sendImage(ctx context.Context, chatID int64, image *domain.Imag
 	return c.send(ctx, m)
 }
 
-func (c *client) sendKeyboard(ctx context.Context, chatID int64, title string, buttons map[string]string) error {
-	var row []tgbotapi.InlineKeyboardButton
-	for label, callback := range buttons {
-		row = append(row, tgbotapi.NewInlineKeyboardButtonData(label, callback))
+func (c *client) sendKeyboard(
+	ctx context.Context,
+	chatID int64,
+	title string,
+	buttonLabels []string,
+	callbackPrefix string,
+	buttonsPerRow int,
+) error {
+	if buttonsPerRow <= 0 {
+		buttonsPerRow = 1 // Default to 1 button per row
 	}
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(row)
+
+	buttons := lo.Map(buttonLabels, func(label string, _ int) tgbotapi.InlineKeyboardButton {
+		return tgbotapi.NewInlineKeyboardButtonData(label, callbackPrefix+label)
+	})
+
+	keyboard := lo.Chunk(buttons, buttonsPerRow)
 
 	m := tgbotapi.NewMessage(chatID, title)
-	m.ReplyMarkup = keyboard
+	m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(keyboard...)
 	return c.send(ctx, m)
 }
 

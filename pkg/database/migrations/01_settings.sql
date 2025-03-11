@@ -4,5 +4,5 @@ CREATE TABLE settings (
     text_model VARCHAR,
     system_prompt VARCHAR,
     image_model VARCHAR,
-    ttl INT DEFAULT 0
+    ttl BIGINT DEFAULT 0
 );

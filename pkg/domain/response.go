@@ -20,6 +20,8 @@ type File struct {
 }
 
 type Keyboard struct {
-	Title   string
-	Buttons map[string]string
+	Title          string
+	ButtonLabels   []string
+	CallbackPrefix string
+	ButtonsPerRow  int
 }
