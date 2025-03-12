@@ -23,7 +23,7 @@ func (hr *htmlRenderer) Paragraph(out *bytes.Buffer, text func() bool) {
 		out.Truncate(marker)
 		return
 	}
-	out.WriteString("\n")
+	out.WriteString("\n\n")
 }
 
 func (hr *htmlRenderer) BlockCode(out *bytes.Buffer, text []byte, lang string) {
