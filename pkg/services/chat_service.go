@@ -19,6 +19,12 @@ type ChatRepository interface {
 	Clear(chatID int64)
 }
 
+type StateRepository interface {
+	Save(chatID int64, state domain.State)
+	GetByChatID(chatID int64) (domain.State, bool)
+	Clear(chatID int64)
+}
+
 type SettingsRepository interface {
 	Save(ctx context.Context, settings domain.Settings) error
 	GetByChatID(ctx context.Context, chatID int64) (*domain.Settings, error)
@@ -26,6 +32,7 @@ type SettingsRepository interface {
 
 type chatService struct {
 	chatRepo            ChatRepository
+	stateRepo           StateRepository
 	settingsRepo        SettingsRepository
 	supportedTextModels []string
 	supportedTTLOptions []time.Duration
@@ -34,6 +41,7 @@ type chatService struct {
 
 func NewChatService(
 	chatRepo ChatRepository,
+	stateRepo StateRepository,
 	settingsRepo SettingsRepository,
 	supportedTextModels []string,
 	supportedTTLOptions []time.Duration,
@@ -41,11 +49,30 @@ func NewChatService(
 ) *chatService {
 	return &chatService{
 		chatRepo:            chatRepo,
+		stateRepo:           stateRepo,
 		settingsRepo:        settingsRepo,
 		supportedTextModels: supportedTextModels,
 		supportedTTLOptions: supportedTTLOptions,
 		responseCh:          responseCh,
 	}
+}
+
+func (c *chatService) HasState(chatID int64) bool {
+	_, exists := c.stateRepo.GetByChatID(chatID)
+	return exists
+}
+
+func (c *chatService) HandleState(ctx context.Context, chatID int64, text string) {
+	if state, exists := c.stateRepo.GetByChatID(chatID); exists {
+		switch state {
+		case domain.StateEditSystemPrompt:
+			c.SetSystemPrompt(ctx, chatID, text)
+		}
+		c.stateRepo.Clear(chatID)
+		return
+	}
+
+	c.responseCh <- domain.Response{ChatID: chatID, Err: errors.New("unsupported state")}
 }
 
 func (c *chatService) ClearChatHistory(ctx context.Context, chatID int64) {
@@ -182,9 +209,28 @@ func (c *chatService) parseTTL(ttlRaw string) (time.Duration, error) {
 }
 
 func (c *chatService) SendSystemPrompt(ctx context.Context, chatID int64) {
+	settings, _ := c.settingsRepo.GetByChatID(ctx, chatID)
+
+	prompt := settings.SystemPrompt
+	if prompt == "" {
+		prompt = "Отсутсвует"
+	}
+
 	c.responseCh <- domain.Response{
 		ChatID: chatID,
-		Text:   "🚧 В разработке 🚧",
+		Keyboard: &domain.Keyboard{
+			Title:          fmt.Sprintf("🧠 Текущая системная инструкция:\n%s", prompt),
+			ButtonLabels:   []string{"Редактировать"},
+			CallbackPrefix: domain.SetSystemPromptCallbackPrefix,
+		},
+	}
+}
+
+func (c *chatService) RequestSystemPromptUpdate(ctx context.Context, chatID int64) {
+	c.stateRepo.Save(chatID, domain.StateEditSystemPrompt)
+	c.responseCh <- domain.Response{
+		ChatID: chatID,
+		Text:   "📝 Пожалуйста, отправьте новую системную инструкцию:",
 	}
 }
 
@@ -196,7 +242,7 @@ func (c *chatService) SetSystemPrompt(ctx context.Context, chatID int64, prompt 
 
 	c.responseCh <- domain.Response{
 		ChatID: chatID,
-		Text:   "✅ Системный промпт установлен: " + prompt,
+		Text:   "✅ Системная инструкция установлена: " + prompt,
 	}
 }
 

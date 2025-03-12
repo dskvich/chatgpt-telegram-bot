@@ -91,6 +91,7 @@ func setupWorkers() (workers.Group, error) {
 	}
 
 	chatRepository := repository.NewChatRepository()
+	stateRepository := repository.NewStateRepository()
 	promptRepository := repository.NewPromptsRepository(db)
 	settingsRepository := repository.NewSettingsRepository(db)
 
@@ -122,6 +123,7 @@ func setupWorkers() (workers.Group, error) {
 
 	chatService := services.NewChatService(
 		chatRepository,
+		stateRepository,
 		settingsRepository,
 		supportedTextModels,
 		supportedTTLOptions,

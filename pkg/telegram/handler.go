@@ -35,6 +35,9 @@ type ChatService interface {
 	SendImageModels(ctx context.Context, chatID int64)
 	SendTTLOptions(ctx context.Context, chatID int64)
 	SendSystemPrompt(ctx context.Context, chatID int64)
+	HasState(chatID int64) bool
+	HandleState(ctx context.Context, chatID int64, text string)
+	RequestSystemPromptUpdate(ctx context.Context, chatID int64)
 }
 
 type handler struct {
@@ -81,12 +84,21 @@ func (h *handler) handleCallback(ctx context.Context, callback *tgbotapi.Callbac
 		h.chatService.SetImageModel(ctx, chatID, data)
 	case strings.HasPrefix(data, domain.SetTTLCallbackPrefix):
 		h.chatService.SetChatTTL(ctx, chatID, data)
+	case strings.HasPrefix(data, domain.SetSystemPromptCallbackPrefix):
+		h.chatService.RequestSystemPromptUpdate(ctx, chatID)
 	default:
 		slog.Warn("Unhandled callback", "data", data)
 	}
 }
 
 func (h *handler) handleMessage(ctx context.Context, msg *tgbotapi.Message) {
+	// Check chat state, like editing system prompt when
+	// the next text message should be interpreted as the new system prompt.
+	if h.chatService.HasState(msg.Chat.ID) {
+		h.chatService.HandleState(ctx, msg.Chat.ID, msg.Text)
+		return
+	}
+
 	switch {
 	case msg.Photo != nil:
 		h.textService.GenerateFromImage(ctx, msg.Chat.ID, msg.Photo[len(msg.Photo)-1].FileID, msg.Caption)
