@@ -22,6 +22,7 @@ func Auth(authorizedIDs []int64) bot.Middleware {
 				userID = update.CallbackQuery.From.ID
 			default:
 				slog.WarnContext(ctx, "Received unknown update type", "update", update)
+				return
 			}
 
 			if slices.Contains(authorizedIDs, userID) {
