@@ -133,7 +133,7 @@ func GenerateContent(
 		var imageBytes []byte
 		if len(update.Message.Photo) > 0 {
 			imageFile, err := b.GetFile(ctx, &bot.GetFileParams{
-				FileID: update.Message.Photo[0].FileID,
+				FileID: update.Message.Photo[len(update.Message.Photo)-1].FileID,
 			})
 			if err != nil {
 				b.SendMessage(ctx, &bot.SendMessageParams{
