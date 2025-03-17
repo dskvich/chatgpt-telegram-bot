@@ -117,12 +117,12 @@ func setupWorkers() (workers.Group, error) {
 		),
 
 		bot.WithDefaultHandler(handlers.GenerateContent(settingsRepository, chatRepository, promptRepository, openAIClient)),
-		bot.WithMessageTextHandler("/start", bot.MatchTypeExact, handlers.Start()),
-		bot.WithMessageTextHandler("/new", bot.MatchTypeExact, handlers.ClearChat(chatRepository)),
-		bot.WithMessageTextHandler("/text_models", bot.MatchTypeExact, handlers.ShowTextModels(supportedTextModels)),
-		bot.WithMessageTextHandler("/image_models", bot.MatchTypeExact, handlers.ShowImageModels()),
-		bot.WithMessageTextHandler("/system_prompt", bot.MatchTypeExact, handlers.ShowSystemPrompt(settingsRepository)),
-		bot.WithMessageTextHandler("/ttl", bot.MatchTypeExact, handlers.ShowTTL(supportedTTLOptions)),
+		bot.WithMessageTextHandler("/start", bot.MatchTypePrefix, handlers.Start()),
+		bot.WithMessageTextHandler("/new", bot.MatchTypePrefix, handlers.ClearChat(chatRepository)),
+		bot.WithMessageTextHandler("/text_models", bot.MatchTypePrefix, handlers.ShowTextModels(supportedTextModels)),
+		bot.WithMessageTextHandler("/image_models", bot.MatchTypePrefix, handlers.ShowImageModels()),
+		bot.WithMessageTextHandler("/system_prompt", bot.MatchTypePrefix, handlers.ShowSystemPrompt(settingsRepository)),
+		bot.WithMessageTextHandler("/ttl", bot.MatchTypePrefix, handlers.ShowTTL(supportedTTLOptions)),
 
 		bot.WithCallbackQueryDataHandler(domain.SetTTLCallbackPrefix, bot.MatchTypePrefix, handlers.SetTTL(settingsRepository, supportedTTLOptions)),
 		bot.WithCallbackQueryDataHandler(domain.SetTextModelCallbackPrefix, bot.MatchTypePrefix, handlers.SetTextModel(settingsRepository, chatRepository, supportedTextModels)),
