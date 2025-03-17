@@ -10,16 +10,17 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v9"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/auth"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/converter"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/database"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/logger"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/openai"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/repository"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/services"
-	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram/handlers"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram/matchers"
+	"github.com/dskvich/chatgpt-telegram-bot/pkg/telegram/middleware"
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/workers"
+	"github.com/go-telegram/bot"
 )
 
 type Config struct {
@@ -74,18 +75,12 @@ func setupWorkers() (workers.Group, error) {
 	var worker workers.Worker
 	var workerGroup workers.Group
 
-	telegramClient, err := telegram.NewClient(cfg.TelegramBotToken)
-	if err != nil {
-		return nil, fmt.Errorf("creating telegram client: %w", err)
-	}
-	authenticator := auth.NewAuthenticator(cfg.TelegramAuthorizedUserIDs)
-
 	db, err := database.NewPostgres(cfg.PgURL, cfg.PgHost)
 	if err != nil {
 		return nil, fmt.Errorf("creating db: %w", err)
 	}
 
-	openAIClient, err := openai.NewClient(cfg.OpenAIToken) //, chatRepository, settingsRepository, chatStyleRepository, tools)
+	openAIClient, err := openai.NewClient(cfg.OpenAIToken)
 	if err != nil {
 		return nil, fmt.Errorf("creating open ai client: %w", err)
 	}
@@ -94,14 +89,6 @@ func setupWorkers() (workers.Group, error) {
 	stateRepository := repository.NewStateRepository()
 	promptRepository := repository.NewPromptsRepository(db)
 	settingsRepository := repository.NewSettingsRepository(db)
-
-	responseCh := make(chan domain.Response)
-
-	imageService := services.NewImageService(
-		openAIClient,
-		promptRepository,
-		responseCh,
-	)
 
 	// Price per 1M tokens (Input/Output)
 	// https://platform.openai.com/docs/pricing
@@ -121,46 +108,36 @@ func setupWorkers() (workers.Group, error) {
 		7 * 24 * time.Hour,
 	}
 
-	chatService := services.NewChatService(
-		chatRepository,
-		stateRepository,
-		settingsRepository,
-		supportedTextModels,
-		supportedTTLOptions,
-		responseCh,
-	)
+	opts := []bot.Option{
+		bot.WithMiddlewares(
+			middleware.RequestID,
+			middleware.Auth(cfg.TelegramAuthorizedUserIDs),
+			middleware.Typing,
+			middleware.VoiceToText(&converter.VoiceToMP3{}, openAIClient),
+		),
 
-	textService := services.NewTextService(
-		openAIClient,
-		imageService,
-		chatService,
-		telegramClient,
-		responseCh,
-	)
+		bot.WithDefaultHandler(handlers.GenerateContent(settingsRepository, chatRepository, promptRepository, openAIClient)),
+		bot.WithMessageTextHandler("/start", bot.MatchTypeExact, handlers.Start()),
+		bot.WithMessageTextHandler("/new", bot.MatchTypeExact, handlers.ClearChat(chatRepository)),
+		bot.WithMessageTextHandler("/text_models", bot.MatchTypeExact, handlers.ShowTextModels(supportedTextModels)),
+		bot.WithMessageTextHandler("/image_models", bot.MatchTypeExact, handlers.ShowImageModels()),
+		bot.WithMessageTextHandler("/system_prompt", bot.MatchTypeExact, handlers.ShowSystemPrompt(settingsRepository)),
+		bot.WithMessageTextHandler("/ttl", bot.MatchTypeExact, handlers.ShowTTL(supportedTTLOptions)),
 
-	voiceService := services.NewVoiceService(
-		&converter.VoiceToMP3{},
-		openAIClient,
-		telegramClient,
-		imageService,
-		textService,
-		responseCh,
-	)
+		bot.WithCallbackQueryDataHandler(domain.SetTTLCallbackPrefix, bot.MatchTypePrefix, handlers.SetTTL(settingsRepository, supportedTTLOptions)),
+		bot.WithCallbackQueryDataHandler(domain.SetTextModelCallbackPrefix, bot.MatchTypePrefix, handlers.SetTextModel(settingsRepository, chatRepository, supportedTextModels)),
+		bot.WithCallbackQueryDataHandler(domain.SetSystemPromptCallbackPrefix, bot.MatchTypePrefix, handlers.RequestSystemPrompt(stateRepository)),
+		bot.WithCallbackQueryDataHandler(domain.GenImageCallbackPrefix, bot.MatchTypePrefix, handlers.RegenerateImage(promptRepository, openAIClient)),
+	}
 
-	handler := telegram.NewHandler(
-		imageService,
-		textService,
-		voiceService,
-		chatService,
-	)
+	b, err := bot.New(cfg.TelegramBotToken, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("creating telegram bot: %w", err)
+	}
 
-	if worker, err = workers.
-		NewTelegramUpdateListener(
-			telegramClient,
-			authenticator,
-			handler,
-			responseCh,
-		); err == nil {
+	b.RegisterHandlerMatchFunc(matchers.IsEditingSystemPrompt(stateRepository), handlers.SetSystemPrompt(settingsRepository, chatRepository))
+
+	if worker, err = workers.NewTelegramBot(b); err == nil {
 		workerGroup = append(workerGroup, worker)
 	} else {
 		return nil, err

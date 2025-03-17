@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -14,30 +15,36 @@ type chatEntry struct {
 
 type chatRepository struct {
 	mu    sync.RWMutex
-	chats map[int64]chatEntry
+	chats map[string]chatEntry
 }
 
 func NewChatRepository() *chatRepository {
 	return &chatRepository{
-		chats: make(map[int64]chatEntry),
+		chats: make(map[string]chatEntry),
 	}
+}
+
+func (c *chatRepository) key(chatID int64, topicID int) string {
+	return fmt.Sprintf("%d:%d", chatID, topicID)
 }
 
 func (c *chatRepository) Save(chat domain.Chat) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.chats[chat.ID] = chatEntry{
+	key := c.key(chat.ID, chat.TopicID)
+	c.chats[key] = chatEntry{
 		chat:       chat,
 		lastUpdate: time.Now(),
 	}
 }
 
-func (c *chatRepository) GetByID(chatID int64) (domain.Chat, time.Time, bool) {
+func (c *chatRepository) Get(chatID int64, topicID int) (domain.Chat, time.Time, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	entry, ok := c.chats[chatID]
+	key := c.key(chatID, topicID)
+	entry, ok := c.chats[key]
 	if !ok {
 		return domain.Chat{}, time.Time{}, false
 	}
@@ -45,9 +52,10 @@ func (c *chatRepository) GetByID(chatID int64) (domain.Chat, time.Time, bool) {
 	return entry.chat, entry.lastUpdate, true
 }
 
-func (c *chatRepository) Clear(chatID int64) {
+func (c *chatRepository) Clear(chatID int64, topicID int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	delete(c.chats, chatID)
+	key := c.key(chatID, topicID)
+	delete(c.chats, key)
 }

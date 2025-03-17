@@ -264,11 +264,11 @@ type Options struct {
 	NoColor bool
 }
 
-func ContextWithRequestID(ctx context.Context, requestID int) context.Context {
+func ContextWithRequestID(ctx context.Context, requestID int64) context.Context {
 	return context.WithValue(ctx, requestIDKey, requestID)
 }
 
-func RequestIDFromContext(ctx context.Context) (int, bool) {
-	correlationID, ok := ctx.Value(requestIDKey).(int)
+func RequestIDFromContext(ctx context.Context) (int64, bool) {
+	correlationID, ok := ctx.Value(requestIDKey).(int64)
 	return correlationID, ok
 }

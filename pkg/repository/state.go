@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/dskvich/chatgpt-telegram-bot/pkg/domain"
@@ -8,33 +9,40 @@ import (
 
 type stateRepository struct {
 	mu    sync.RWMutex
-	state map[int64]domain.State
+	state map[string]domain.State
 }
 
 func NewStateRepository() *stateRepository {
 	return &stateRepository{
-		state: make(map[int64]domain.State),
+		state: make(map[string]domain.State),
 	}
 }
 
-func (s *stateRepository) Save(chatID int64, state domain.State) {
+func (s *stateRepository) key(chatID int64, topicID int) string {
+	return fmt.Sprintf("%d:%d", chatID, topicID)
+}
+
+func (s *stateRepository) Save(chatID int64, topicID int, state domain.State) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.state[chatID] = state
+	key := s.key(chatID, topicID)
+	s.state[key] = state
 }
 
-func (s *stateRepository) GetByChatID(chatID int64) (domain.State, bool) {
+func (s *stateRepository) Get(chatID int64, topicID int) (domain.State, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	state, exists := s.state[chatID]
+	key := s.key(chatID, topicID)
+	state, exists := s.state[key]
 	return state, exists
 }
 
-func (s *stateRepository) Clear(chatID int64) {
+func (s *stateRepository) Clear(chatID int64, topicID int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	delete(s.state, chatID)
+	key := s.key(chatID, topicID)
+	delete(s.state, key)
 }

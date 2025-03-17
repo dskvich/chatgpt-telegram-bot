@@ -6,14 +6,16 @@ import (
 	"os"
 	"os/exec"
 	"path"
+
+	"golang.org/x/net/context"
 )
 
 type VoiceToMP3 struct{}
 
-func (v *VoiceToMP3) ConvertToMP3(inputPath string) (string, error) {
+func (v *VoiceToMP3) ConvertToMP3(ctx context.Context, inputPath string) (string, error) {
 	defer os.Remove(inputPath)
 
-	slog.Info("Converting voice message to mp3...", "inputPath", inputPath)
+	slog.InfoContext(ctx, "Converting voice message to mp3...", "inputPath", inputPath)
 
 	var (
 		outputPath string
@@ -28,7 +30,7 @@ func (v *VoiceToMP3) ConvertToMP3(inputPath string) (string, error) {
 		return "", fmt.Errorf("invalid voice message format")
 	}
 
-	slog.Info("Conversion successful", "inputPath", inputPath, "outputPath", outputPath)
+	slog.InfoContext(ctx, "Conversion successful", "inputPath", inputPath, "outputPath", outputPath)
 
 	return outputPath, err
 }
