@@ -32,7 +32,7 @@ type generateContentChatProvider interface {
 
 type generateContentAIService interface {
 	GenerateImage(ctx context.Context, prompt string) ([]byte, error)
-	CreateChatCompletion(ctx context.Context, chat *domain.Chat) (domain.ChatMessage, error)
+	CreateChatCompletion(ctx context.Context, chat *domain.Chat) (*domain.Message, error)
 }
 
 type generateContentPromptSaver interface {
@@ -81,6 +81,13 @@ func GenerateContent(
 			return nil, err
 		}
 		return data, nil
+	}
+
+	shortDuration := func(d time.Duration) string {
+		s := d.String()
+		s = lo.Ternary(strings.HasSuffix(s, "m0s"), s[:len(s)-2], s)
+		s = lo.Ternary(strings.HasSuffix(s, "h0m"), s[:len(s)-2], s)
+		return s
 	}
 
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -188,19 +195,18 @@ func GenerateContent(
 			)
 
 			chat = domain.Chat{
-				ID:        chatID,
-				TopicID:   topicID,
-				ModelName: settings.TextModel,
-				Messages: lo.If(settings.SystemPrompt != "",
-					[]domain.ChatMessage{{Role: "developer", Content: settings.SystemPrompt}}).
-					Else(nil),
+				ID:           chatID,
+				TopicID:      topicID,
+				Model:        settings.TextModel,
+				TTL:          settings.TTL,
+				SystemPrompt: settings.SystemPrompt,
 			}
 
 			text := fmt.Sprintf(`<i>🛠️ Создан новый чат!
 Текстовая модель GPT: %s
 Период хранения данных: %s
 Системная инструкция: %s
-</i>`, settings.TextModel, settings.TTL, settings.SystemPrompt)
+</i>`, chat.Model, shortDuration(chat.TTL), chat.SystemPrompt)
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:          chatID,
 				MessageThreadID: topicID,
@@ -210,34 +216,32 @@ func GenerateContent(
 		}
 
 		// Add user message
-		content := any(prompt)
+		content := []domain.ContentPart{{Type: domain.ContentPartTypeText, Data: prompt}}
 
 		if len(imageBytes) > 0 {
-			imageContent := domain.Content{
-				Type: "image_url",
-				ImageURL: &domain.ImageURL{
-					URL: "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(imageBytes),
-				},
+			imageContent := domain.ContentPart{
+				Type: domain.ContentPartTypeImage,
+				Data: "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(imageBytes),
 			}
 
 			if prompt != "" {
-				content = []domain.Content{
-					{Type: "text", Text: prompt},
+				content = []domain.ContentPart{
+					{Type: domain.ContentPartTypeText, Data: prompt},
 					imageContent,
 				}
 			} else {
-				content = []domain.Content{imageContent}
+				content = []domain.ContentPart{imageContent}
 			}
 		}
 
-		chat.Messages = append(chat.Messages, domain.ChatMessage{
-			Role:    "user",
-			Content: content,
+		chat.Messages = append(chat.Messages, domain.Message{
+			Role:         domain.MessageRoleUser,
+			ContentParts: content,
 		})
 
-		slog.InfoContext(ctx, "Calling AI for chat completion", "model", chat.ModelName, "messagesCount", len(chat.Messages))
+		slog.InfoContext(ctx, "Calling AI for chat completion", "model", chat.Model, "messagesCount", len(chat.Messages))
 
-		chatResponse, err := aiService.CreateChatCompletion(ctx, &chat)
+		respMessage, err := aiService.CreateChatCompletion(ctx, &chat)
 		if err != nil {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:          chatID,
@@ -247,50 +251,56 @@ func GenerateContent(
 			return
 		}
 
-		slog.DebugContext(ctx, "Chat completion received", "content", chatResponse.Content)
-
-		// Add assistant message
-		chat.Messages = append(chat.Messages, chatResponse)
-
-		if chatResponse.Content != nil {
-			chatProvider.Save(chat)
-
-			htmlText := render.ToHTML(fmt.Sprint(chatResponse.Content))
-			for len(htmlText) > 0 {
-				if utf8.RuneCountInString(htmlText) <= maxTelegramMessageLength {
-					b.SendMessage(ctx, &bot.SendMessageParams{
-						ChatID:          chatID,
-						MessageThreadID: topicID,
-						Text:            htmlText,
-						ParseMode:       models.ParseModeHTML,
-					})
-					return
-				}
-
-				cutIndex := findCutIndex(htmlText, maxTelegramMessageLength)
-				_, err := b.SendMessage(ctx, &bot.SendMessageParams{
-					ChatID:          chatID,
-					MessageThreadID: topicID,
-					Text:            htmlText[:cutIndex],
-					ParseMode:       models.ParseModeHTML,
-				})
-				if err != nil {
-					b.SendMessage(ctx, &bot.SendMessageParams{
-						ChatID:          chatID,
-						MessageThreadID: topicID,
-						Text:            fmt.Sprintf("❌ Не удалось сгенерировать ответ: %s", err),
-					})
-				}
-				htmlText = htmlText[cutIndex:]
-				time.Sleep(time.Second) // tg rate limit
-			}
+		if respMessage == nil || len(respMessage.ContentParts) == 0 {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:          chatID,
+				MessageThreadID: topicID,
+				Text:            "❌ Ответ пустой или отсутствует.",
+			})
 			return
 		}
 
-		b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID:          chatID,
-			MessageThreadID: topicID,
-			Text:            fmt.Sprintf("❌ Неожиданный ответ:  %+v", chatResponse),
-		})
+		chat.Messages = append(chat.Messages, *respMessage)
+		chatProvider.Save(chat)
+
+		part := respMessage.ContentParts[0] // Assume only one part for now
+		if part.Type != domain.ContentPartTypeText {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:          chatID,
+				MessageThreadID: topicID,
+				Text:            fmt.Sprintf("❌ Неожиданный тип ответа: %+v", part),
+			})
+			return
+		}
+
+		htmlText := render.ToHTML(fmt.Sprint(part.Data))
+		for len(htmlText) > 0 {
+			if utf8.RuneCountInString(htmlText) <= maxTelegramMessageLength {
+				b.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID:          chatID,
+					MessageThreadID: topicID,
+					Text:            htmlText,
+					ParseMode:       models.ParseModeHTML,
+				})
+				return
+			}
+
+			cutIndex := findCutIndex(htmlText, maxTelegramMessageLength)
+			_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:          chatID,
+				MessageThreadID: topicID,
+				Text:            htmlText[:cutIndex],
+				ParseMode:       models.ParseModeHTML,
+			})
+			if err != nil {
+				b.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID:          chatID,
+					MessageThreadID: topicID,
+					Text:            fmt.Sprintf("❌ Не удалось сгенерировать ответ: %s", err),
+				})
+			}
+			htmlText = htmlText[cutIndex:]
+			time.Sleep(time.Second) // Basic rate limit management
+		}
 	}
 }

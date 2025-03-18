@@ -39,42 +39,73 @@ func NewClient(token string) (*client, error) {
 	}, nil
 }
 
-func (c *client) CreateChatCompletion(ctx context.Context, chat *domain.Chat) (domain.ChatMessage, error) {
-	reqBody, err := json.Marshal(map[string]interface{}{
-		"model":      chat.ModelName,
-		"messages":   chat.Messages,
-		"max_tokens": defaultMaxTokens,
+func (c *client) CreateChatCompletion(ctx context.Context, chat *domain.Chat) (*domain.Message, error) {
+	messages := make([]chatCompletionMessage, 0, len(chat.Messages)+1)
+
+	if chat.SystemPrompt != "" {
+		messages = append(messages, chatCompletionMessage{
+			Role:    chatMessageRoleDeveloper,
+			Content: []chatMessagePart{{Type: chatMessagePartTypeText, Text: chat.SystemPrompt}},
+		})
+	}
+
+	for _, msg := range chat.Messages {
+		if len(msg.ContentParts) == 1 && msg.ContentParts[0].Type == domain.ContentPartTypeText {
+			// Simple text-only case
+			messages = append(messages, chatCompletionMessage{Role: msg.Role, Content: msg.ContentParts[0].Data})
+		} else {
+			// Complex content case (multiple parts)
+			var parts []chatMessagePart
+			for _, content := range msg.ContentParts {
+				switch content.Type {
+				case domain.ContentPartTypeText:
+					parts = append(parts, chatMessagePart{Type: chatMessagePartTypeText, Text: content.Data})
+				case domain.ContentPartTypeImage:
+					parts = append(parts, chatMessagePart{
+						Type:     chatMessagePartTypeImageURL,
+						ImageURL: &chatMessageImageURL{URL: content.Data},
+					})
+				default:
+					return nil, errors.New("unsupported content type")
+				}
+			}
+			messages = append(messages, chatCompletionMessage{Role: msg.Role, Content: parts})
+		}
+	}
+
+	reqBody, err := json.Marshal(chatCompletionRequest{
+		Model:     chat.Model,
+		Messages:  messages,
+		MaxTokens: defaultMaxTokens,
 	})
 	if err != nil {
-		return domain.ChatMessage{}, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURLChatCompletions, bytes.NewBuffer(reqBody))
 	if err != nil {
-		return domain.ChatMessage{}, fmt.Errorf("failed to create HTTP request: %w", err)
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	respBody, err := c.doRequest(req)
 	if err != nil {
-		return domain.ChatMessage{}, fmt.Errorf("failed to send chat completion request: %w", err)
+		return nil, fmt.Errorf("failed to send chat completion request: %w", err)
 	}
 
-	var parsedResp struct {
-		Choices []struct {
-			Message domain.ChatMessage `json:"message"`
-		} `json:"choices"`
-	}
-
+	var parsedResp chatCompletionResponse
 	if err := json.Unmarshal(respBody, &parsedResp); err != nil {
-		return domain.ChatMessage{}, fmt.Errorf("failed to parse chat completion response: %w", err)
+		return nil, fmt.Errorf("failed to parse chat completion response: %w", err)
 	}
 
 	if len(parsedResp.Choices) == 0 {
-		return domain.ChatMessage{}, errors.New("no choices returned in response")
+		return nil, errors.New("no choices returned in response")
 	}
 
-	return parsedResp.Choices[0].Message, nil
+	return &domain.Message{
+		Role:         parsedResp.Choices[0].Message.Role,
+		ContentParts: []domain.ContentPart{{Type: "text", Data: fmt.Sprint(parsedResp.Choices[0].Message.Content)}},
+	}, nil
 }
 
 func (c *client) doRequest(req *http.Request) ([]byte, error) {

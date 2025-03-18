@@ -135,7 +135,7 @@ func setupWorkers() (workers.Group, error) {
 		return nil, fmt.Errorf("creating telegram bot: %w", err)
 	}
 
-	b.RegisterHandlerMatchFunc(matchers.IsEditingSystemPrompt(stateRepository), handlers.SetSystemPrompt(settingsRepository, chatRepository))
+	b.RegisterHandlerMatchFunc(matchers.IsEditingSystemPrompt(stateRepository), handlers.SetSystemPrompt(settingsRepository, chatRepository, stateRepository))
 
 	if worker, err = workers.NewTelegramBot(b); err == nil {
 		workerGroup = append(workerGroup, worker)

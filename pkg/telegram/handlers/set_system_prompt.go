@@ -20,7 +20,15 @@ type SetSystemPromptChatClearer interface {
 	Clear(chatID int64, topicID int)
 }
 
-func SetSystemPrompt(provider SetSystemPromptSettingsProvider, clearer SetSystemPromptChatClearer) bot.HandlerFunc {
+type SetSystemPromptStateClearer interface {
+	Clear(chatID int64, topicID int)
+}
+
+func SetSystemPrompt(
+	provider SetSystemPromptSettingsProvider,
+	chatClearer SetSystemPromptChatClearer,
+	stateClearer SetSystemPromptStateClearer,
+) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 		chatID := update.Message.Chat.ID
 		topicID := update.Message.MessageThreadID
@@ -54,7 +62,8 @@ func SetSystemPrompt(provider SetSystemPromptSettingsProvider, clearer SetSystem
 			Text:            "✅ Системная инструкция установлена: " + prompt,
 		})
 
-		clearer.Clear(chatID, topicID)
+		chatClearer.Clear(chatID, topicID)
+		stateClearer.Clear(chatID, topicID)
 
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:          chatID,
