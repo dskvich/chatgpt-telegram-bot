@@ -96,8 +96,8 @@ func setupWorkers() (workers.Group, error) {
 		"gpt-4o-mini",   // $0.15/$0.60
 		"gpt-3.5-turbo", // $0.50/$1.50
 		"o3-mini",       // $1.10/$4.40
-		//"gpt-4o",        // $2.50/$10.00
-		//"gpt-4-turbo",   // $10.00/$30.00
+		// "gpt-4o",        // $2.50/$10.00
+		// "gpt-4-turbo",   // $10.00/$30.00
 	}
 
 	supportedTTLOptions := []time.Duration{

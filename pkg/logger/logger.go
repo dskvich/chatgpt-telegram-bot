@@ -110,7 +110,7 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 		}
 	}
 
-	//we need the attributes here, as we can print a longer string if there are no attributes
+	// we need the attributes here, as we can print a longer string if there are no attributes
 	var attrs []slog.Attr
 	attrs = append(attrs, h.attrs...)
 	r.Attrs(func(a slog.Attr) bool {
@@ -130,7 +130,7 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 		}
 	}
 	if h.opts.MsgColor == nil {
-		h.opts.MsgColor = color.New() //set to empty otherwise we have a null pointer
+		h.opts.MsgColor = color.New() // set to empty otherwise we have a null pointer
 	}
 	fmt.Fprintf(bf, "%s", h.opts.MsgColor.Sprint(formattedMessage))
 
@@ -225,7 +225,7 @@ func stripANSI(bf *bytes.Buffer) {
 	bf.Write(cleaned)
 }
 
-var DefaultOptions *Options = &Options{
+var DefaultOptions = &Options{
 	Level:         slog.LevelDebug,
 	TimeFormat:    time.DateTime,
 	SrcFileMode:   ShortFile,

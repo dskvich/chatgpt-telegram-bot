@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -121,7 +122,7 @@ func GenerateContent(
 
 			kb := &models.InlineKeyboardMarkup{
 				InlineKeyboard: [][]models.InlineKeyboardButton{
-					{{Text: moreButtonText, CallbackData: domain.GenImageCallbackPrefix + fmt.Sprint(promptID)}},
+					{{Text: moreButtonText, CallbackData: domain.GenImageCallbackPrefix + strconv.FormatInt(promptID, 10)}},
 				},
 			}
 
@@ -273,8 +274,8 @@ func GenerateContent(
 			return
 		}
 
-		htmlText := render.ToHTML(fmt.Sprint(part.Data))
-		for len(htmlText) > 0 {
+		htmlText := render.ToHTML(part.Data)
+		for htmlText != "" {
 			if utf8.RuneCountInString(htmlText) <= maxTelegramMessageLength {
 				b.SendMessage(ctx, &bot.SendMessageParams{
 					ChatID:          chatID,

@@ -21,7 +21,7 @@ type SetTextModelChatClearer interface {
 	Clear(chatID int64, topicID int)
 }
 
-func SetTextModel(provider SetTTLSettingsProvider, clearer SetTextModelChatClearer, supportedTextModels []string) bot.HandlerFunc {
+func SetTextModel(provider SetTextModelSettingsProvider, clearer SetTextModelChatClearer, supportedTextModels []string) bot.HandlerFunc {
 	parseTextModel := func(modelRaw string) (string, error) {
 		if !strings.HasPrefix(modelRaw, domain.SetTextModelCallbackPrefix) {
 			return "", fmt.Errorf("invalid format, expected prefix '%s'", domain.SetTextModelCallbackPrefix)

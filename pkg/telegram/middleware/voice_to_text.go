@@ -46,7 +46,7 @@ func VoiceToText(converter audioConverter, transcriber audioTranscriber) bot.Mid
 		saveTempVoiceFile := func(data []byte) (string, error) {
 			const (
 				voiceTempDir      = "tmp/voices"
-				voiceTempFilePerm = 0644
+				voiceTempFilePerm = 0o644
 			)
 
 			if err := os.MkdirAll(voiceTempDir, os.ModePerm); err != nil {

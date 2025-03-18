@@ -29,7 +29,8 @@ func (s *settingsRepository) Save(ctx context.Context, settings domain.Settings)
 			ttl = EXCLUDED.ttl
 	`
 
-	_, err := s.db.ExecContext(ctx, query, settings.ChatID, settings.TopicID, settings.TextModel, settings.SystemPrompt, settings.ImageModel, settings.TTL)
+	_, err := s.db.ExecContext(ctx, query,
+		settings.ChatID, settings.TopicID, settings.TextModel, settings.SystemPrompt, settings.ImageModel, settings.TTL)
 	if err != nil {
 		return fmt.Errorf("saving settings: %w", err)
 	}

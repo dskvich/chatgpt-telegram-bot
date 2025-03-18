@@ -1,6 +1,7 @@
 package converter
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -27,7 +28,7 @@ func (v *VoiceToMP3) ConvertToMP3(ctx context.Context, inputPath string) (string
 			return "", fmt.Errorf("converting file: %w", err)
 		}
 	} else {
-		return "", fmt.Errorf("invalid voice message format")
+		return "", errors.New("invalid voice message format")
 	}
 
 	slog.InfoContext(ctx, "Conversion successful", "inputPath", inputPath, "outputPath", outputPath)

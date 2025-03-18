@@ -1,4 +1,4 @@
-GOLANGCI_LINT_VERSION := 1.63.4
+GOLANGCI_LINT_VERSION := 1.64.8
 GOLANGCI_LINT := $(HOME)/go/bin/golangci-lint
 
 .PHONY: db

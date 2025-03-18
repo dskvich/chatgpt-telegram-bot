@@ -42,7 +42,7 @@ func RegenerateImage(
 		chatID := update.CallbackQuery.Message.Message.Chat.ID
 		topicID := update.CallbackQuery.Message.Message.MessageThreadID
 
-		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+		defer b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: update.CallbackQuery.ID,
 			ShowAlert:       false,
 		})
@@ -86,7 +86,7 @@ func RegenerateImage(
 		kb := &models.InlineKeyboardMarkup{
 			InlineKeyboard: [][]models.InlineKeyboardButton{
 				{
-					{Text: moreButtonText, CallbackData: domain.GenImageCallbackPrefix + fmt.Sprint(promptID)},
+					{Text: moreButtonText, CallbackData: domain.GenImageCallbackPrefix + strconv.FormatInt(promptID, 10)},
 				},
 			},
 		}
