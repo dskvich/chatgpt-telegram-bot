@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"os/exec"
 	"path"
 
@@ -14,8 +13,6 @@ import (
 type VoiceToMP3 struct{}
 
 func (v *VoiceToMP3) ConvertToMP3(ctx context.Context, inputPath string) (string, error) {
-	defer os.Remove(inputPath)
-
 	slog.InfoContext(ctx, "Converting voice message to mp3...", "inputPath", inputPath)
 
 	var (
